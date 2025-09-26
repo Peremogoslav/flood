@@ -141,10 +141,16 @@ def menu_auth():
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
                 console.print("[green]Регистрация успешна. Токен получен.[/green]")
+                return
             else:
-                console.print("[red]Аккаунт уже существует либо произошла ошибка[/red]")
+                if r.status_code == 409:
+                    console.print("[red]Пользователь уже существует[/red]")
+                elif r.status_code == 422:
+                    console.print("[red]Некорректные данные: username ≥ 3 символов, пароль ≥ 6 символов[/red]")
+                else:
+                    console.print("[red]Ошибка регистрации[/red]")
                 wait_key()
-            return
+                continue
         elif ch == "2":
             username = input("Username: ").strip()
             password = pwinput.pwinput(prompt="Пароль: ", mask="*")
@@ -153,10 +159,11 @@ def menu_auth():
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
                 console.print("[green]Вход выполнен. Токен обновлён.[/green]")
+                return
             else:
                 console.print("[red]Неверные учетные данные[/red]")
                 wait_key()
-            return
+                continue
         elif ch == "0":
             break
 
