@@ -73,7 +73,8 @@ def menu_auth():
                 ACCESS_TOKEN = data.get("access_token")
                 console.print("[green]Регистрация успешна. Токен получен.[/green]")
             else:
-                console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+                console.print("[red]Аккаунт уже существует либо произошла ошибка[/red]")
+                wait_key()
             return
         elif ch == "2":
             username = input("Username: ").strip()
@@ -84,7 +85,8 @@ def menu_auth():
                 ACCESS_TOKEN = data.get("access_token")
                 console.print("[green]Вход выполнен. Токен обновлён.[/green]")
             else:
-                console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+                console.print("[red]Неверные учетные данные[/red]")
+                wait_key()
             return
         elif ch == "0":
             break

@@ -82,8 +82,9 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
                 try:
                     await client.send_message(peer, msg, link_preview=False)
                     await _append_log(job_id, {"level": "sent", "account": acc.phone, "peer": getattr(peer, 'title', getattr(peer, 'username', 'unknown'))})
-                except Exception as e:
-                    await _append_log(job_id, {"level": "skip", "account": acc.phone, "peer": getattr(peer, 'title', getattr(peer, 'username', 'unknown')), "detail": str(e)})
+                except Exception:
+                    # Логируем без подробностей ошибки
+                    await _append_log(job_id, {"level": "skip", "account": acc.phone, "peer": getattr(peer, 'title', getattr(peer, 'username', 'unknown'))})
                 await asyncio.sleep(random.randint(user_min, user_max))
         finally:
             if client.is_connected():
