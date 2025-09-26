@@ -591,6 +591,16 @@ def menu_admin():
 
 
 def main():
+    # one-time access check at startup
+    # try a cheap call to /health with access password prompt
+    try:
+        resp = api_get("/health")
+        if resp.status_code == 403 and not ACCESS_PASSWORD:
+            # prompt handled inside api_get, but if still forbidden, stop
+            console.print("[red]Доступ запрещён. Обратитесь к администратору для добавления IP либо пароля доступа[/red]")
+            return
+    except Exception:
+        pass
     while True:
         clear_screen()
         print_header()
