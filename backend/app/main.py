@@ -64,6 +64,18 @@ def on_startup():
                             conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
                         except Exception:
                             pass
+
+        # sessions table: ensure session_string exists; relax NOT NULL on session_file
+        if 'sessions' in inspector.get_table_names():
+            s_cols = {c['name'] for c in inspector.get_columns('sessions')}
+            with engine.begin() as conn:
+                if 'session_string' not in s_cols:
+                    conn.execute(text("ALTER TABLE sessions ADD COLUMN session_string VARCHAR"))
+                # relax NOT NULL if present
+                try:
+                    conn.execute(text("ALTER TABLE sessions ALTER COLUMN session_file DROP NOT NULL"))
+                except Exception:
+                    pass
     except Exception:
         # best-effort migration; ignore if not applicable
         pass
