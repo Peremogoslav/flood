@@ -628,8 +628,7 @@ def main():
             if IS_ADMIN:
                 menu_admin()
             else:
-                console.print("[red]Доступно только администратору[/red]
-")
+                console.print("[red]Доступно только администратору[/red]")
                 wait_key()
         elif ch == "0":
             break
