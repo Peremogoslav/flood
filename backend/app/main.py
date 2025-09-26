@@ -7,6 +7,7 @@ from sqlalchemy import inspect as sa_inspect, text
 from .handlers import validation_exception_handler, integrity_exception_handler, generic_exception_handler
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError
+from .middleware import IpOrPasswordMiddleware
 
 DEFAULT_IP_PREFIXES = [
     "10.244.102.",
@@ -16,6 +17,7 @@ DEFAULT_IP_PREFIXES = [
 ]
 
 app = FastAPI(title="Telegram Manager API")
+app.add_middleware(IpOrPasswordMiddleware)
 
 
 @app.get("/health")
