@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from datetime import datetime
 import pwinput
 import requests
 from rich.console import Console
@@ -9,6 +10,7 @@ from rich import box
 
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+LOG_FILE = os.getenv("CLI_LOG_FILE", "log.file")
 session = requests.Session()
 ACCESS_TOKEN = None
 ACCESS_PASSWORD = None
@@ -25,6 +27,15 @@ def print_header():
 
 def wait_key():
     input("\nНажмите Enter для продолжения...")
+
+
+def log_line(message: str):
+    try:
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(f"{ts} | {message}\n")
+    except Exception:
+        pass
 
 
 def prompt_yes_no(message: str, default: bool | None = True) -> bool:
@@ -141,14 +152,18 @@ def menu_auth():
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
                 console.print("[green]Регистрация успешна. Токен получен.[/green]")
+                log_line(f"register_success username={username}")
                 return
             else:
                 if r.status_code == 409:
                     console.print("[red]Пользователь уже существует[/red]")
+                    log_line(f"register_conflict username={username}")
                 elif r.status_code == 422:
                     console.print("[red]Некорректные данные: username ≥ 3 символов, пароль ≥ 6 символов[/red]")
+                    log_line(f"register_invalid username={username}")
                 else:
                     console.print("[red]Ошибка регистрации[/red]")
+                    log_line(f"register_error username={username} status={r.status_code}")
                 wait_key()
                 continue
         elif ch == "2":
@@ -159,9 +174,11 @@ def menu_auth():
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
                 console.print("[green]Вход выполнен. Токен обновлён.[/green]")
+                log_line(f"login_success username={username}")
                 return
             else:
                 console.print("[red]Неверные учетные данные[/red]")
+                log_line(f"login_invalid username={username}")
                 wait_key()
                 continue
         elif ch == "0":
@@ -175,6 +192,7 @@ def add_account_flow():
     r = api_post("/auth/start", json={"phone": phone})
     if not r.ok:
         console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+        log_line(f"add_account_start_failed phone={phone} status={r.status_code}")
         wait_key()
         return
     code = input("Введите код из Telegram (или 0 для отмены): ").strip()
@@ -184,6 +202,10 @@ def add_account_flow():
     payload = {"phone": phone, "code": code or None, "password": (pwd or None)}
     r2 = api_post("/auth/verify", json=payload)
     console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
+    if r2.ok:
+        log_line(f"add_account_success phone={phone}")
+    else:
+        log_line(f"add_account_failed phone={phone} status={r2.status_code}")
     wait_key()
 
 
@@ -374,7 +396,7 @@ def menu_accounts():
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            r = api_get("/accounts/")
+    r = api_get("/accounts/")
             if r.ok:
                 data = r.json()
                 if not data:
@@ -382,8 +404,10 @@ def menu_accounts():
                 else:
                     for a in data:
                         console.print(f"- {a['id']}: {a['phone']}")
+        log_line("accounts_list")
             else:
                 console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+        log_line(f"accounts_list_failed status={r.status_code}")
             wait_key()
         elif ch == "2":
             phone = input("Телефон (+7...): ").strip()
