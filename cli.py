@@ -136,7 +136,7 @@ def api_delete(path: str, **kwargs):
 
 
 def menu_auth():
-    global ACCESS_TOKEN
+    global ACCESS_TOKEN, IS_ADMIN
     while True:
         clear_screen()
         print_header()
@@ -153,7 +153,6 @@ def menu_auth():
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
                 try:
-                    global IS_ADMIN
                     IS_ADMIN = bool(data.get("is_admin", False))
                 except Exception:
                     IS_ADMIN = False
@@ -180,7 +179,6 @@ def menu_auth():
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
                 try:
-                    global IS_ADMIN
                     IS_ADMIN = bool(data.get("is_admin", False))
                 except Exception:
                     IS_ADMIN = False
