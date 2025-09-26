@@ -150,3 +150,81 @@ async def get_folder_peers(session_file: str | None, folder_name: str, session_s
             async with lock:
                 await client.disconnect()
 
+
+async def init_client(session_file: str):
+    """
+    Полностью повторяет прежнюю работающую логику получения папок Telegram.
+    Возвращает (client, folders_with_chats) или (None, {}).
+    Вызвавшая сторона должна отключить client при необходимости.
+    """
+    client = None
+    lock = session_lock_for(session_file or "")
+    try:
+        client = TelegramClient(session_file, settings.api_id, settings.api_hash)
+        async with lock:
+            await client.connect()
+
+        if not await client.is_user_authorized():
+            await client.disconnect()
+            return None, {}
+
+        all_dialogs = [d async for d in client.iter_dialogs()]
+        dialog_map = {utils.get_peer_id(d.entity): d.entity for d in all_dialogs}
+        folders_with_chats: Dict[str, List[object]] = {}
+
+        filters_result = None
+        try:
+            filters_result = await client(GetDialogFiltersRequest())
+        except Exception:
+            pass
+
+        if filters_result and hasattr(filters_result, "filters"):
+            for f in filters_result.filters:
+                if isinstance(f, DialogFilterDefault):
+                    continue
+
+                folder_title = f.title.text if hasattr(f.title, 'text') else str(f.title)
+                chats_in_folder: List[object] = []
+                added_peer_ids = set()
+
+                if hasattr(f, 'include_peers'):
+                    for peer in f.include_peers:
+                        peer_id = utils.get_peer_id(peer)
+                        if peer_id in dialog_map and peer_id not in added_peer_ids:
+                            chats_in_folder.append(dialog_map[peer_id])
+                            added_peer_ids.add(peer_id)
+
+                for dialog in all_dialogs:
+                    entity = dialog.entity
+                    peer_id = utils.get_peer_id(entity)
+                    if peer_id in added_peer_ids:
+                        continue
+
+                    if isinstance(f, DialogFilter):
+                        if f.bots and isinstance(entity, User) and getattr(entity, 'bot', False):
+                            chats_in_folder.append(entity)
+                            added_peer_ids.add(peer_id)
+                        if f.broadcasts and isinstance(entity, Channel) and not getattr(entity, 'megagroup', False):
+                            chats_in_folder.append(entity)
+                            added_peer_ids.add(peer_id)
+                        if f.groups and (isinstance(entity, Chat) or (
+                                isinstance(entity, Channel) and getattr(entity, 'megagroup', False))):
+                            chats_in_folder.append(entity)
+                            added_peer_ids.add(peer_id)
+                        if isinstance(entity, User):
+                            if f.contacts and getattr(entity, 'contact', False):
+                                chats_in_folder.append(entity)
+                                added_peer_ids.add(peer_id)
+                            if f.non_contacts and not getattr(entity, 'contact', False):
+                                chats_in_folder.append(entity)
+                                added_peer_ids.add(peer_id)
+
+                folders_with_chats[folder_title] = chats_in_folder
+
+        return client, folders_with_chats
+
+    except Exception:
+        if client and client.is_connected():
+            await client.disconnect()
+        return None, {}
+
