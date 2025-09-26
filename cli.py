@@ -180,8 +180,23 @@ def start_spam_flow():
     acc_ids, folder_name = choose_accounts_and_folder()
     if not acc_ids or not folder_name:
         return
-    messages = input("Сообщения через | : ").strip()
-    msgs = [m.strip() for m in messages.split("|") if m.strip()]
+    msgs = []
+    try:
+        if os.path.exists("messages.txt"):
+            with open("messages.txt", "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                msgs = [m.strip() for m in content.split("|") if m.strip()]
+        else:
+            messages = input("Сообщения через | : ").strip()
+            msgs = [m.strip() for m in messages.split("|") if m.strip()]
+    except Exception as e:
+        console.print(f"[red]Ошибка чтения messages.txt: {e}[/red]")
+        wait_key()
+        return
+    if not msgs:
+        console.print("[red]Нет сообщений для отправки[/red]")
+        wait_key()
+        return
     try:
         min_delay = int(input("min_delay: ").strip() or "5")
         max_delay = int(input("max_delay: ").strip() or "10")
