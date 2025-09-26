@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from telethon import TelegramClient
@@ -48,9 +48,7 @@ async def addlist_join(payload: AddListIn, db: Session = Depends(get_db)):
 
 
 @router.get("/by_accounts")
-async def folders_by_accounts(account_ids: list[int] = Field(default_factory=list), db: Session = Depends(get_db)):
-    if not account_ids:
-        raise HTTPException(status_code=400, detail="account_ids required")
+async def folders_by_accounts(account_ids: list[int] = Query(..., min_items=1), db: Session = Depends(get_db)):
     accounts = db.query(SessionAccount).filter(SessionAccount.id.in_(account_ids)).all()
     if not accounts:
         raise HTTPException(status_code=404, detail="Accounts not found")
