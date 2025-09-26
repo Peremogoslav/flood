@@ -67,6 +67,133 @@ def menu_auth():
             break
 
 
+def add_account_flow():
+    phone = input("Введите номер телефона (+79161234567) или 0 для возврата: ").strip()
+    if phone == "0":
+        return
+    r = session.post(f"{API_BASE}/auth/start", json={"phone": phone}, headers=auth_headers())
+    if not r.ok:
+        console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+        wait_key()
+        return
+    code = input("Введите код из Telegram: ").strip()
+    pwd = pwinput.pwinput(prompt="Введите пароль 2FA (если включён, иначе Enter): ", mask="*")
+    payload = {"phone": phone, "code": code or None, "password": (pwd or None)}
+    r2 = session.post(f"{API_BASE}/auth/verify", json=payload, headers=auth_headers())
+    console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
+    wait_key()
+
+
+def delete_account_flow():
+    r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+    data = r.json() if r.ok else []
+    if not data:
+        console.print("[yellow]Нет аккаунтов[/yellow]")
+        wait_key()
+        return
+    console.print("Ваши аккаунты:")
+    for a in data:
+        console.print(f"- {a['id']}: {a['phone']}")
+    ids = input("Введите ID для удаления (через запятую): ").strip()
+    try:
+        targets = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        console.print("[red]Неверный формат ID[/red]")
+        wait_key()
+        return
+    for tid in targets:
+        resp = session.delete(f"{API_BASE}/accounts/{tid}", headers=auth_headers())
+        if resp.status_code == 204:
+            console.print(f"Удалено: {tid}")
+        else:
+            console.print(f"[red]Ошибка при удалении {tid}: {resp.status_code} {resp.text}")
+    wait_key()
+
+
+def add_folder_to_accounts_flow():
+    r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+    accs = r.json() if r.ok else []
+    if not accs:
+        console.print("[yellow]Нет аккаунтов[/yellow]")
+        wait_key()
+        return
+    console.print("Доступные аккаунты:")
+    for a in accs:
+        console.print(f"- {a['id']}: {a['phone']}")
+    ids = input("Введите ID через запятую: ").strip()
+    try:
+        id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        console.print("[red]Неверный формат ID[/red]")
+        wait_key()
+        return
+    link = input("Ссылка addlist: ").strip()
+    r2 = session.post(f"{API_BASE}/folders/addlist", json={"phone_ids": id_list, "link": link}, headers=auth_headers())
+    console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
+    wait_key()
+
+
+def choose_accounts_and_folder():
+    r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+    accs = r.json() if r.ok else []
+    if not accs:
+        console.print("[yellow]Нет аккаунтов[/yellow]")
+        wait_key()
+        return [], None
+    console.print("Ваши аккаунты:")
+    for a in accs:
+        console.print(f"- {a['id']}: {a['phone']}")
+    ids = input("Выберите аккаунт(ы) через запятую: ").strip()
+    try:
+        id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+    except ValueError:
+        console.print("[red]Неверный формат ID[/red]")
+        wait_key()
+        return [], None
+    params = "&".join([f"account_ids={i}" for i in id_list])
+    r2 = session.get(f"{API_BASE}/folders/by_accounts?{params}", headers=auth_headers())
+    if not r2.ok:
+        console.print(f"[red]Ошибка: {r2.status_code} {r2.text}")
+        wait_key()
+        return [], None
+    data = r2.json()  # {accId: {folderName: [titles]}}
+    folder_names = set()
+    for _, fmap in data.items():
+        folder_names.update(list(fmap.keys()))
+    if not folder_names:
+        console.print("[yellow]У выбранных аккаунтов нет папок[/yellow]")
+        wait_key()
+        return [], None
+    folder_list = sorted(folder_names)
+    console.print("Доступные папки:")
+    for i, name in enumerate(folder_list, 1):
+        console.print(f"{i}. {name}")
+    ch = input("Выберите папку по номеру: ").strip()
+    if not ch.isdigit() or not (1 <= int(ch) <= len(folder_list)):
+        console.print("[red]Неверный выбор папки[/red]")
+        wait_key()
+        return [], None
+    return id_list, folder_list[int(ch) - 1]
+
+
+def start_spam_flow():
+    acc_ids, folder_name = choose_accounts_and_folder()
+    if not acc_ids or not folder_name:
+        return
+    messages = input("Сообщения через | : ").strip()
+    msgs = [m.strip() for m in messages.split("|") if m.strip()]
+    try:
+        min_delay = int(input("min_delay: ").strip() or "5")
+        max_delay = int(input("max_delay: ").strip() or "10")
+    except ValueError:
+        console.print("[red]Неверные задержки[/red]")
+        wait_key()
+        return
+    randomize = input("Перемешивать чаты? (y/n): ").strip().lower() in ("y", "да", "1", "true")
+    payload = {"account_ids": acc_ids, "folder_name": folder_name, "messages": msgs, "min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize}
+    r = session.post(f"{API_BASE}/spam/start", json=payload, headers=auth_headers())
+    console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
+    wait_key()
 def menu_accounts():
     while True:
         clear_screen()
@@ -274,23 +401,29 @@ def main():
             elif ch == "0":
                 break
             continue
-        console.print("\n[bold cyan]1.[/bold cyan] Авторизация (регистрация/вход)")
-        console.print("[bold cyan]2.[/bold cyan] Аккаунты")
-        console.print("[bold cyan]3.[/bold cyan] Настройки")
-        console.print("[bold cyan]4.[/bold cyan] Папки")
-        console.print("[bold cyan]5.[/bold cyan] Админ")
-        console.print("[bold cyan]0.[/bold cyan] Выход\n")
+        console.print("\n[bold cyan]1.[/bold cyan] Добавить аккаунт Telegram")
+        console.print("[bold cyan]2.[/bold cyan] Начать рассылку по папкам")
+        console.print("[bold cyan]3.[/bold cyan] Удалить аккаунт/сессию")
+        console.print("[bold cyan]4.[/bold cyan] Настройки спама")
+        console.print("[bold cyan]5.[/bold cyan] Добавить папку с чатами")
+        console.print("[bold cyan]6.[/bold cyan] Админ-панель")
+        console.print("[bold cyan]7.[/bold cyan] Авторизация (регистрация/вход)")
+        console.print("[bold cyan]0.[/bold cyan] Выйти\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            menu_auth()
+            add_account_flow()
         elif ch == "2":
-            menu_accounts()
+            start_spam_flow()
         elif ch == "3":
-            menu_config()
+            delete_account_flow()
         elif ch == "4":
-            menu_folders()
+            menu_config()
         elif ch == "5":
+            add_folder_to_accounts_flow()
+        elif ch == "6":
             menu_admin()
+        elif ch == "7":
+            menu_auth()
         elif ch == "0":
             break
 
