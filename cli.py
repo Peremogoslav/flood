@@ -39,6 +39,40 @@ def log_line(message: str):
         pass
 
 
+def fetch_accounts():
+    r = api_get("/accounts/")
+    if not r.ok:
+        console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+        log_line(f"accounts_fetch_failed status={r.status_code}")
+        return []
+    data = r.json() or []
+    return data
+
+
+def show_accounts_enumerated(accs: list[dict]):
+    if not accs:
+        console.print("[yellow]Нет аккаунтов[/yellow]")
+        return
+    for idx, a in enumerate(accs, 1):
+        console.print(f"- {idx}: {a['phone']}")
+
+
+def prompt_account_indices(max_n: int) -> list[int]:
+    raw = input("Введите номера через запятую: ").strip()
+    try:
+        nums = [int(x.strip()) for x in raw.split(",") if x.strip()]
+    except ValueError:
+        console.print("[red]Неверный формат[/red]")
+        return []
+    valid = []
+    for n in nums:
+        if 1 <= n <= max_n:
+            valid.append(n)
+    if not valid:
+        console.print("[yellow]Ничего не выбрано[/yellow]")
+    return valid
+
+
 def prompt_yes_no(message: str, default: bool | None = True) -> bool:
     suffix = "[Y/n]" if default is True else ("[y/N]" if default is False else "[y/n]")
     while True:
@@ -255,22 +289,18 @@ def delete_account_flow():
 
 
 def add_folder_to_accounts_flow():
-    r = api_get("/accounts/")
-    accs = r.json() if r.ok else []
+    accs = fetch_accounts()
     if not accs:
         console.print("[yellow]Нет аккаунтов[/yellow]")
         wait_key()
         return
     console.print("Доступные аккаунты:")
-    for a in accs:
-        console.print(f"- {a['id']}: {a['phone']}")
-    ids = input("Введите ID через запятую: ").strip()
-    try:
-        id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
-    except ValueError:
-        console.print("[red]Неверный формат ID[/red]")
+    show_accounts_enumerated(accs)
+    idxs = prompt_account_indices(len(accs))
+    if not idxs:
         wait_key()
         return
+    id_list = [accs[i - 1]["id"] for i in idxs]
     link = input("Ссылка addlist: ").strip()
     r2 = api_post("/folders/addlist", json={"phone_ids": id_list, "link": link})
     console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
@@ -278,23 +308,19 @@ def add_folder_to_accounts_flow():
 
 
 def choose_accounts_and_folder():
-    r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
-    accs = r.json() if r.ok else []
+    accs = fetch_accounts()
     if not accs:
         console.print("[yellow]Нет аккаунтов. Сначала добавьте аккаунт в пункте 1 главного меню.[/yellow]")
         wait_key()
         return [], None
     console.print("Ваши аккаунты:")
-    for a in accs:
-        console.print(f"- {a['id']}: {a['phone']}")
-    ids = input("Выберите аккаунт(ы) через запятую: ").strip()
-    try:
-        id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
-    except ValueError:
-        console.print("[red]Неверный формат ID[/red]")
+    show_accounts_enumerated(accs)
+    idxs = prompt_account_indices(len(accs))
+    if not idxs:
         wait_key()
         return [], None
-    params = "&".join([f"account_ids={i}" for i in id_list])
+    selected_ids = [accs[i - 1]["id"] for i in idxs]
+    params = "&".join([f"account_ids={i}" for i in selected_ids])
     r2 = api_get(f"/folders/by_accounts?{params}")
     if not r2.ok:
         console.print(f"[red]Ошибка: {r2.status_code} {r2.text}")
@@ -319,7 +345,7 @@ def choose_accounts_and_folder():
         console.print("[red]Неверный выбор папки[/red]")
         wait_key()
         return [], None
-    return id_list, folder_list[int(ch) - 1]
+    return selected_ids, folder_list[int(ch) - 1]
 
 
 def start_spam_flow():
