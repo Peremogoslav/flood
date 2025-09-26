@@ -1,7 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 import json
 from pathlib import Path
+from ..settings import settings
+from ..security import bearer_auth
 
 CONFIG_PATH = Path("spam_config.json")
 
@@ -21,7 +23,7 @@ DEFAULT_CONFIG = ConfigModel(
 )
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
 
 
 @router.get("/", response_model=ConfigModel)

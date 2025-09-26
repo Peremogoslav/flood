@@ -6,6 +6,7 @@ from telethon.tl.functions.chatlists import CheckChatlistInviteRequest, JoinChat
 from ..settings import settings
 from ..db import get_db
 from ..models import SessionAccount
+from ..security import bearer_auth
 
 
 class AddListIn(BaseModel):
@@ -13,7 +14,7 @@ class AddListIn(BaseModel):
     link: str
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
 
 
 @router.post("/addlist")

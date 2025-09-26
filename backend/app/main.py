@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from sqlalchemy.orm import Session
 from .db import Base, engine, SessionLocal
 from .models import IpRange
-from .routers import accounts, config, admin, auth, folders
+from .routers import accounts, config, admin, auth, folders, users
 
 DEFAULT_IP_PREFIXES = [
     "10.244.102.",
@@ -38,4 +38,5 @@ app.include_router(config.router, prefix="/config", tags=["config"])
 app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(folders.router, prefix="/folders", tags=["folders"])
+app.include_router(users.router, prefix="/users", tags=["users"])
 

@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..db import get_db
 from ..models import SessionAccount
+from ..settings import settings
+from ..security import bearer_auth
 
 
 class AccountCreate(BaseModel):
@@ -19,7 +21,7 @@ class AccountOut(BaseModel):
         from_attributes = True
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
 
 
 @router.get("/", response_model=list[AccountOut])

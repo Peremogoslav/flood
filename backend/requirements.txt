@@ -7,3 +7,5 @@ telethon==1.36.0
 rich==13.9.2
 pwinput==1.0.3
 python-multipart==0.0.12
+passlib[bcrypt]==1.7.4
+PyJWT==2.9.0

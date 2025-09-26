@@ -9,6 +9,8 @@ from rich import box
 
 
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
+session = requests.Session()
+ACCESS_TOKEN = None
 console = Console()
 
 
@@ -24,6 +26,47 @@ def wait_key():
     input("\nНажмите Enter для продолжения...")
 
 
+def auth_headers():
+    global ACCESS_TOKEN
+    return {"Authorization": f"Bearer {ACCESS_TOKEN}"} if ACCESS_TOKEN else {}
+
+
+def menu_auth():
+    global ACCESS_TOKEN
+    while True:
+        clear_screen()
+        print_header()
+        console.print("[bold magenta]Авторизация[/bold magenta]\n")
+        console.print("1. Регистрация (email + пароль)")
+        console.print("2. Вход (email + пароль)")
+        console.print("0. Назад\n")
+        ch = input("Выберите действие: ").strip()
+        if ch == "1":
+            email = input("Email: ").strip()
+            password = pwinput.pwinput(prompt="Пароль: ", mask="*")
+            r = session.post(f"{API_BASE}/users/register", json={"email": email, "password": password})
+            if r.ok:
+                data = r.json()
+                ACCESS_TOKEN = data.get("access_token")
+                console.print("[green]Регистрация успешна. Токен получен.[/green]")
+            else:
+                console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+            wait_key()
+        elif ch == "2":
+            email = input("Email: ").strip()
+            password = pwinput.pwinput(prompt="Пароль: ", mask="*")
+            r = session.post(f"{API_BASE}/users/login", json={"email": email, "password": password})
+            if r.ok:
+                data = r.json()
+                ACCESS_TOKEN = data.get("access_token")
+                console.print("[green]Вход выполнен. Токен обновлён.[/green]")
+            else:
+                console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+            wait_key()
+        elif ch == "0":
+            break
+
+
 def menu_accounts():
     while True:
         clear_screen()
@@ -36,7 +79,7 @@ def menu_accounts():
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            r = requests.get(f"{API_BASE}/accounts/")
+            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
             if r.ok:
                 data = r.json()
                 if not data:
@@ -49,7 +92,7 @@ def menu_accounts():
             wait_key()
         elif ch == "2":
             phone = input("Телефон (+7...): ").strip()
-            r = requests.post(f"{API_BASE}/auth/start", json={"phone": phone})
+            r = session.post(f"{API_BASE}/auth/start", json={"phone": phone}, headers=auth_headers())
             console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
             wait_key()
         elif ch == "3":
@@ -57,12 +100,12 @@ def menu_accounts():
             code = input("Код (если есть, иначе Enter): ").strip()
             password = pwinput.pwinput(prompt="Пароль 2FA (если есть, иначе Enter): ", mask="*")
             payload = {"phone": phone, "code": code or None, "password": password or None}
-            r = requests.post(f"{API_BASE}/auth/verify", json=payload)
+            r = session.post(f"{API_BASE}/auth/verify", json=payload, headers=auth_headers())
             console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
             wait_key()
         elif ch == "4":
             acc_id = input("ID аккаунта для удаления: ").strip()
-            r = requests.delete(f"{API_BASE}/accounts/{acc_id}")
+            r = session.delete(f"{API_BASE}/accounts/{acc_id}", headers=auth_headers())
             console.print("Удалено" if r.status_code == 204 else f"[red]Ошибка: {r.status_code} {r.text}")
             wait_key()
         elif ch == "0":
@@ -74,7 +117,7 @@ def menu_config():
         clear_screen()
         print_header()
         console.print("[bold magenta]Настройки[/bold magenta]\n")
-        r = requests.get(f"{API_BASE}/config/")
+        r = session.get(f"{API_BASE}/config/", headers=auth_headers())
         cfg = r.json() if r.ok else {}
         console.print(str(cfg))
         console.print("\n1. Обновить настройки")
@@ -91,7 +134,7 @@ def menu_config():
             randomize = input(f"randomize_chats (y/n, сейчас {cfg.get('randomize_chats')}): ").strip().lower() in ("y", "да", "1", "true")
             use_images = input(f"use_images (y/n, сейчас {cfg.get('use_images')}): ").strip().lower() in ("y", "да", "1", "true")
             payload = {"min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize, "use_images": use_images}
-            r2 = requests.put(f"{API_BASE}/config/", json=payload)
+            r2 = session.put(f"{API_BASE}/config/", json=payload, headers=auth_headers())
             console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "0":
@@ -107,7 +150,7 @@ def menu_folders():
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            r = requests.get(f"{API_BASE}/accounts/")
+            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
             accs = r.json() if r.ok else []
             if not accs:
                 console.print("[yellow]Нет аккаунтов[/yellow]")
@@ -124,7 +167,7 @@ def menu_folders():
                 wait_key()
                 continue
             link = input("Ссылка addlist: ").strip()
-            r2 = requests.post(f"{API_BASE}/folders/addlist", json={"phone_ids": id_list, "link": link})
+            r2 = session.post(f"{API_BASE}/folders/addlist", json={"phone_ids": id_list, "link": link}, headers=auth_headers())
             console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "0":
@@ -142,7 +185,7 @@ def menu_admin():
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            r = requests.get(f"{API_BASE}/admin/ip_ranges")
+            r = session.get(f"{API_BASE}/admin/ip_ranges", headers=auth_headers())
             data = r.json() if r.ok else []
             if not data:
                 console.print("[yellow]Список пуст[/yellow]")
@@ -152,12 +195,12 @@ def menu_admin():
             wait_key()
         elif ch == "2":
             prefix = input("Префикс (например 192.168.1.): ").strip()
-            r = requests.post(f"{API_BASE}/admin/ip_ranges", json={"prefix": prefix})
+            r = session.post(f"{API_BASE}/admin/ip_ranges", json={"prefix": prefix}, headers=auth_headers())
             console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
             wait_key()
         elif ch == "3":
             ip_id = input("ID для удаления: ").strip()
-            r = requests.delete(f"{API_BASE}/admin/ip_ranges/{ip_id}")
+            r = session.delete(f"{API_BASE}/admin/ip_ranges/{ip_id}", headers=auth_headers())
             console.print("Удалено" if r.status_code == 204 else f"[red]Ошибка: {r.status_code} {r.text}")
             wait_key()
         elif ch == "0":
@@ -168,19 +211,22 @@ def main():
     while True:
         clear_screen()
         print_header()
-        console.print("\n[bold cyan]1.[/bold cyan] Аккаунты")
-        console.print("[bold cyan]2.[/bold cyan] Настройки")
-        console.print("[bold cyan]3.[/bold cyan] Папки")
-        console.print("[bold cyan]4.[/bold cyan] Админ")
+        console.print("\n[bold cyan]1.[/bold cyan] Авторизация (регистрация/вход)")
+        console.print("[bold cyan]2.[/bold cyan] Аккаунты")
+        console.print("[bold cyan]3.[/bold cyan] Настройки")
+        console.print("[bold cyan]4.[/bold cyan] Папки")
+        console.print("[bold cyan]5.[/bold cyan] Админ")
         console.print("[bold cyan]0.[/bold cyan] Выход\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            menu_accounts()
+            menu_auth()
         elif ch == "2":
-            menu_config()
+            menu_accounts()
         elif ch == "3":
-            menu_folders()
+            menu_config()
         elif ch == "4":
+            menu_folders()
+        elif ch == "5":
             menu_admin()
         elif ch == "0":
             break

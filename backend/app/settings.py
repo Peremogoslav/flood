@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     api_id: int = int(os.getenv("API_ID", "0"))
     api_hash: str = os.getenv("API_HASH", "")
     sessions_dir: str = os.getenv("SESSIONS_DIR", "sessions")
+    jwt_secret: str = os.getenv("JWT_SECRET", "change-me-please")
 
 
 settings = Settings()

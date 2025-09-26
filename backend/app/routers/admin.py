@@ -3,6 +3,8 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from ..db import get_db
 from ..models import IpRange
+from ..settings import settings
+from ..security import bearer_auth
 
 
 class IpRangeIn(BaseModel):
@@ -17,7 +19,7 @@ class IpRangeOut(BaseModel):
         from_attributes = True
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
 
 
 @router.get("/ip_ranges", response_model=list[IpRangeOut])
