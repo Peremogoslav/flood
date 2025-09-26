@@ -9,8 +9,8 @@ from .settings import settings
 
 class IpOrPasswordMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        # allow health and auth/user routes unconditionally
-        if request.url.path.startswith("/health") or request.url.path.startswith("/users"):
+        # allow health only
+        if request.url.path.startswith("/health"):
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "127.0.0.1"

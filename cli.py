@@ -148,7 +148,7 @@ def menu_auth():
         if ch == "1":
             username = input("Username: ").strip()
             password = pwinput.pwinput(prompt="Пароль: ", mask="*")
-            r = session.post(f"{API_BASE}/users/register", json={"username": username, "password": password})
+            r = api_post("/users/register", json={"username": username, "password": password})
             if r.ok:
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
@@ -174,7 +174,7 @@ def menu_auth():
         elif ch == "2":
             username = input("Username: ").strip()
             password = pwinput.pwinput(prompt="Пароль: ", mask="*")
-            r = session.post(f"{API_BASE}/users/login", json={"username": username, "password": password})
+            r = api_post("/users/login", json={"username": username, "password": password})
             if r.ok:
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
