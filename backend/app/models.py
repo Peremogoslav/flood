@@ -9,6 +9,7 @@ class SessionAccount(Base):
     phone = Column(String, unique=True, nullable=False)
     session_file = Column(String, nullable=True)
     session_string = Column(String, nullable=True)
+    user_id = Column(Integer, nullable=True, index=True)
 
     __table_args__ = (
         UniqueConstraint('phone', name='uq_sessions_phone'),
@@ -28,6 +29,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
+    is_admin = Column(Integer, nullable=False, default=0)
 
 
 class AuthFlow(Base):

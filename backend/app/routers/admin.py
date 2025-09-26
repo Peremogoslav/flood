@@ -4,7 +4,9 @@ from pydantic import BaseModel, Field
 from ..db import get_db
 from ..models import IpRange
 from ..settings import settings
-from ..security import bearer_auth
+from ..security import bearer_auth, get_current_user_id, decode_access_token
+from fastapi import Header
+from ..settings import settings
 
 
 class IpRangeIn(BaseModel):
@@ -19,7 +21,18 @@ class IpRangeOut(BaseModel):
         from_attributes = True
 
 
-router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
+def admin_guard(authorization: str = Header(default="")):
+    try:
+        token = authorization.split(" ", 1)[1]
+    except Exception:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    payload = decode_access_token(token, settings.jwt_secret)
+    if not payload.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin only")
+    return True
+
+
+router = APIRouter(dependencies=[Depends(admin_guard)])
 
 
 @router.get("/ip_ranges", response_model=list[IpRangeOut])

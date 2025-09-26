@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 from telethon import TelegramClient
 from telethon.errors import PhoneNumberInvalidError, PhoneCodeInvalidError, SessionPasswordNeededError
@@ -6,6 +6,7 @@ from ..settings import settings
 from ..db import SessionLocal
 from ..models import SessionAccount, AuthFlow
 from telethon.sessions import StringSession
+from ..security import bearer_auth, get_current_user_id
 import os
 
 
@@ -19,7 +20,7 @@ class VerifyAuthIn(BaseModel):
     password: str | None = Field(default=None, max_length=256)
 
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
 
 
 def _session_path_for_phone(phone: str) -> str:
@@ -75,7 +76,7 @@ async def start_auth(payload: StartAuthIn):
 
 
 @router.post("/verify")
-async def verify_auth(payload: VerifyAuthIn):
+async def verify_auth(payload: VerifyAuthIn, current_user_id: int = Depends(get_current_user_id(settings.jwt_secret))):
     if not payload.phone:
         raise HTTPException(status_code=400, detail="phone is required")
 
@@ -114,11 +115,13 @@ async def verify_auth(payload: VerifyAuthIn):
             existing = db.query(SessionAccount).filter_by(phone=payload.phone).first()
             if not existing:
                 s_str = StringSession.save(client.session)
-                rec = SessionAccount(phone=payload.phone, session_file=None, session_string=s_str)
+                rec = SessionAccount(phone=payload.phone, session_file=None, session_string=s_str, user_id=current_user_id)
                 db.add(rec)
             else:
                 existing.session_string = StringSession.save(client.session)
                 existing.session_file = None
+                if not existing.user_id:
+                    existing.user_id = current_user_id
             if db.query(AuthFlow).filter_by(phone=payload.phone).first():
                 db.query(AuthFlow).filter_by(phone=payload.phone).delete()
             db.commit()
