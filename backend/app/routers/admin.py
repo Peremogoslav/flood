@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from ..db import get_db
 from ..models import IpRange
 from ..settings import settings
@@ -8,7 +8,7 @@ from ..security import bearer_auth
 
 
 class IpRangeIn(BaseModel):
-    prefix: str
+    prefix: str = Field(pattern=r"^(?:\d{1,3}\.){3}$", description="e.g. 192.168.1.")
 
 
 class IpRangeOut(BaseModel):

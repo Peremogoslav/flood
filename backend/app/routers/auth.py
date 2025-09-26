@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from telethon import TelegramClient
 from telethon.errors import PhoneNumberInvalidError, PhoneCodeInvalidError, SessionPasswordNeededError
 from ..settings import settings
@@ -9,13 +9,13 @@ import os
 
 
 class StartAuthIn(BaseModel):
-    phone: str
+    phone: str = Field(min_length=5, max_length=32)
 
 
 class VerifyAuthIn(BaseModel):
-    phone: str
-    code: str | None = None
-    password: str | None = None
+    phone: str = Field(min_length=5, max_length=32)
+    code: str | None = Field(default=None, min_length=2, max_length=10)
+    password: str | None = Field(default=None, max_length=256)
 
 
 router = APIRouter()

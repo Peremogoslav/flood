@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from telethon import TelegramClient
 from telethon.tl.functions.chatlists import CheckChatlistInviteRequest, JoinChatlistInviteRequest
@@ -10,8 +10,8 @@ from ..security import bearer_auth
 
 
 class AddListIn(BaseModel):
-    phone_ids: list[int]
-    link: str
+    phone_ids: list[int] = Field(min_length=1)
+    link: str = Field(min_length=10, max_length=256)
 
 
 router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 import json
 from pathlib import Path
 from ..settings import settings
@@ -9,10 +9,16 @@ CONFIG_PATH = Path("spam_config.json")
 
 
 class ConfigModel(BaseModel):
-    min_delay: int
-    max_delay: int
+    min_delay: int = Field(ge=1, le=3600)
+    max_delay: int = Field(ge=1, le=3600)
     randomize_chats: bool
     use_images: bool | None = False
+
+    @model_validator(mode="after")
+    def validate_range(self):
+        if self.max_delay < self.min_delay:
+            raise ValueError("max_delay must be >= min_delay")
+        return self
 
 
 DEFAULT_CONFIG = ConfigModel(

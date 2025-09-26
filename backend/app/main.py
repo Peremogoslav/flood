@@ -4,6 +4,9 @@ from .db import Base, engine, SessionLocal
 from .models import IpRange
 from .routers import accounts, config, admin, auth, folders, users
 from sqlalchemy import inspect as sa_inspect, text
+from .handlers import validation_exception_handler, integrity_exception_handler, generic_exception_handler
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy.exc import IntegrityError
 
 DEFAULT_IP_PREFIXES = [
     "10.244.102.",
@@ -58,4 +61,9 @@ app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(folders.router, prefix="/folders", tags=["folders"])
 app.include_router(users.router, prefix="/users", tags=["users"])
+
+# exception handlers
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(IntegrityError, integrity_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
 
