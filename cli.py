@@ -197,14 +197,19 @@ def start_spam_flow():
         console.print("[red]Нет сообщений для отправки[/red]")
         wait_key()
         return
+    # read config from API; if available, don't prompt
+    min_delay = 5
+    max_delay = 10
+    randomize = True
     try:
-        min_delay = int(input("min_delay: ").strip() or "5")
-        max_delay = int(input("max_delay: ").strip() or "10")
-    except ValueError:
-        console.print("[red]Неверные задержки[/red]")
-        wait_key()
-        return
-    randomize = input("Перемешивать чаты? (y/n): ").strip().lower() in ("y", "да", "1", "true")
+        rc = session.get(f"{API_BASE}/config/", headers=auth_headers())
+        if rc.ok:
+            cfg = rc.json()
+            min_delay = int(cfg.get("min_delay", min_delay))
+            max_delay = int(cfg.get("max_delay", max_delay))
+            randomize = bool(cfg.get("randomize_chats", randomize))
+    except Exception:
+        pass
     payload = {"account_ids": acc_ids, "folder_name": folder_name, "messages": msgs, "min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize}
     r = session.post(f"{API_BASE}/spam/start", json=payload, headers=auth_headers())
     console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
