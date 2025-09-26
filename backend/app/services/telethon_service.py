@@ -74,6 +74,14 @@ async def list_folders(session_file: str | None = None, session_string: str | No
                                 titles.append(getattr(entity, 'first_name', str(peer_id)))
                                 added_peer_ids.add(peer_id)
                 folders_with_titles[folder_title] = titles
+        # Fallback: if user has no folders configured, expose a synthetic folder with all dialogs
+        if not folders_with_titles:
+            titles = []
+            for dialog in all_dialogs:
+                entity = dialog.entity
+                titles.append(getattr(entity, 'title', getattr(entity, 'username', str(getattr(entity, 'id', 'unknown')))))
+            if titles:
+                folders_with_titles["Все чаты"] = titles
         return folders_with_titles
     finally:
         if client.is_connected():
@@ -96,7 +104,8 @@ async def get_folder_peers(session_file: str | None, folder_name: str, session_s
         except Exception:
             filters_result = None
         if not (filters_result and hasattr(filters_result, 'filters')):
-            return []
+            # Fallback: return all dialogs if no folders configured
+            return [d.entity for d in all_dialogs]
         for f in filters_result.filters:
             if isinstance(f, DialogFilterDefault):
                 continue
