@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from .db import Base, engine, SessionLocal
 from .models import IpRange
 from .routers import accounts, config, admin, auth, folders, users
+from sqlalchemy import inspect as sa_inspect, text
 
 DEFAULT_IP_PREFIXES = [
     "10.244.102.",
@@ -31,6 +32,24 @@ def on_startup():
         db.commit()
     finally:
         db.close()
+
+    # lightweight migration: ensure users.username exists (for username-based auth)
+    try:
+        inspector = sa_inspect(engine)
+        if 'users' in inspector.get_table_names():
+            col_names = {c['name'] for c in inspector.get_columns('users')}
+            if 'username' not in col_names:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN username VARCHAR"))
+                    conn.execute(text("UPDATE users SET username = email WHERE (username IS NULL OR username = '') AND email IS NOT NULL"))
+                    conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_users_username ON users (username)"))
+                    try:
+                        conn.execute(text("ALTER TABLE users ALTER COLUMN username SET NOT NULL"))
+                    except Exception:
+                        pass
+    except Exception:
+        # best-effort migration; ignore if not applicable
+        pass
 
 
 app.include_router(accounts.router, prefix="/accounts", tags=["accounts"])

@@ -211,6 +211,15 @@ def main():
     while True:
         clear_screen()
         print_header()
+        if not ACCESS_TOKEN:
+            console.print("\n[bold cyan]1.[/bold cyan] Авторизация (регистрация/вход)")
+            console.print("[bold cyan]0.[/bold cyan] Выход\n")
+            ch = input("Выберите действие: ").strip()
+            if ch == "1":
+                menu_auth()
+            elif ch == "0":
+                break
+            continue
         console.print("\n[bold cyan]1.[/bold cyan] Авторизация (регистрация/вход)")
         console.print("[bold cyan]2.[/bold cyan] Аккаунты")
         console.print("[bold cyan]3.[/bold cyan] Настройки")
