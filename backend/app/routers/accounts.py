@@ -15,7 +15,7 @@ class AccountCreate(BaseModel):
 class AccountOut(BaseModel):
     id: int
     phone: str
-    session_file: str
+    session_file: str | None = None
 
     class Config:
         from_attributes = True
