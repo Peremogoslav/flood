@@ -3,6 +3,8 @@ from typing import Dict, List, Tuple
 import asyncio
 from telethon import TelegramClient, utils
 from telethon.sessions import StringSession
+from sqlalchemy.orm import Session as SASession
+from ..models import SessionAccount
 from telethon.tl.functions.messages import GetDialogFiltersRequest
 from telethon.tl.types import User, Chat, Channel, DialogFilter, DialogFilterDefault
 from ..settings import settings

@@ -39,20 +39,29 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
     user_rand = bool(ucfg.randomize_chats) if ucfg else payload.randomize_chats
 
     async def spam_for_account(acc: SessionAccount):
-        client = TelegramClient(acc.session_file, settings.api_id, settings.api_hash)
-        from ..services.telethon_service import session_lock_for
-        lock = session_lock_for(acc.session_file or "") if not acc.session_string else None
-        if lock:
+        # 1) Получаем список адресатов строго последовательно (в отдельной сессии)
+        peers = await get_folder_peers(acc.session_file, payload.folder_name, session_string=acc.session_string)
+        if not peers:
+            return
+        if user_rand:
+            random.shuffle(peers)
+
+        # 2) Создаём клиент для отправки и подключаемся
+        from telethon.sessions import StringSession
+        if acc.session_string:
+            client = TelegramClient(StringSession(acc.session_string), settings.api_id, settings.api_hash)
+            lock = None
+            await client.connect()
+        else:
+            client = TelegramClient(acc.session_file, settings.api_id, settings.api_hash)
+            from ..services.telethon_service import session_lock_for
+            lock = session_lock_for(acc.session_file or "")
             async with lock:
                 await client.connect()
-        else:
-            await client.connect()
+
         try:
             if not await client.is_user_authorized():
                 return
-            peers = await get_folder_peers(acc.session_file, payload.folder_name)
-            if user_rand:
-                random.shuffle(peers)
             for peer in peers:
                 msg = random.choice(payload.messages)
                 try:
