@@ -26,6 +26,29 @@ def wait_key():
     input("\nНажмите Enter для продолжения...")
 
 
+def prompt_yes_no(message: str, default: bool | None = True) -> bool:
+    suffix = "[Y/n]" if default is True else ("[y/N]" if default is False else "[y/n]")
+    while True:
+        ans = input(f"{message} {suffix}: ").strip().lower()
+        if ans == "" and default is not None:
+            return default
+        if ans in ("y", "yes", "да", "д", "1", "true"):
+            return True
+        if ans in ("n", "no", "нет", "н", "0", "false"):
+            return False
+        console.print("[yellow]Пожалуйста, введите y/н или n/нет[/yellow]")
+
+
+def prompt_phone() -> str | None:
+    while True:
+        phone = input("Введите номер телефона (+79161234567) или 0 для возврата: ").strip()
+        if phone == "0":
+            return None
+        if phone.startswith("+") and phone[1:].replace(" ", "").isdigit() and 11 <= len(phone.replace(" ", "")) <= 16:
+            return phone
+        console.print("[red]Неверный формат номера. Пример: +79001234567[/red]")
+
+
 def auth_headers():
     global ACCESS_TOKEN
     return {"Authorization": f"Bearer {ACCESS_TOKEN}"} if ACCESS_TOKEN else {}
@@ -68,15 +91,17 @@ def menu_auth():
 
 
 def add_account_flow():
-    phone = input("Введите номер телефона (+79161234567) или 0 для возврата: ").strip()
-    if phone == "0":
+    phone = prompt_phone()
+    if not phone:
         return
     r = session.post(f"{API_BASE}/auth/start", json={"phone": phone}, headers=auth_headers())
     if not r.ok:
         console.print(f"[red]Ошибка: {r.status_code} {r.text}")
         wait_key()
         return
-    code = input("Введите код из Telegram: ").strip()
+    code = input("Введите код из Telegram (или 0 для отмены): ").strip()
+    if code == "0":
+        return
     pwd = pwinput.pwinput(prompt="Введите пароль 2FA (если включён, иначе Enter): ", mask="*")
     payload = {"phone": phone, "code": code or None, "password": (pwd or None)}
     r2 = session.post(f"{API_BASE}/auth/verify", json=payload, headers=auth_headers())
@@ -88,17 +113,27 @@ def delete_account_flow():
     r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
     data = r.json() if r.ok else []
     if not data:
-        console.print("[yellow]Нет аккаунтов[/yellow]")
+        console.print("[yellow]Нет аккаунтов для удаления[/yellow]")
         wait_key()
         return
     console.print("Ваши аккаунты:")
     for a in data:
         console.print(f"- {a['id']}: {a['phone']}")
-    ids = input("Введите ID для удаления (через запятую): ").strip()
+    ids = input("Введите ID для удаления (через запятую, или 0 для отмены): ").strip()
+    if ids.strip() == "0":
+        return
     try:
         targets = [int(x.strip()) for x in ids.split(",") if x.strip()]
     except ValueError:
         console.print("[red]Неверный формат ID[/red]")
+        wait_key()
+        return
+    if not targets:
+        console.print("[yellow]Ничего не выбрано[/yellow]")
+        wait_key()
+        return
+    if not prompt_yes_no("Подтвердите удаление выбранных аккаунтов", default=False):
+        console.print("Отменено")
         wait_key()
         return
     for tid in targets:
@@ -137,7 +172,7 @@ def choose_accounts_and_folder():
     r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
     accs = r.json() if r.ok else []
     if not accs:
-        console.print("[yellow]Нет аккаунтов[/yellow]")
+        console.print("[yellow]Нет аккаунтов. Сначала добавьте аккаунт в пункте 1 главного меню.[/yellow]")
         wait_key()
         return [], None
     console.print("Ваши аккаунты:")
@@ -168,8 +203,10 @@ def choose_accounts_and_folder():
     console.print("Доступные папки:")
     for i, name in enumerate(folder_list, 1):
         console.print(f"{i}. {name}")
-    ch = input("Выберите папку по номеру: ").strip()
+    ch = input("Выберите папку по номеру (или 0 для отмены): ").strip()
     if not ch.isdigit() or not (1 <= int(ch) <= len(folder_list)):
+        if ch == "0":
+            return [], None
         console.print("[red]Неверный выбор папки[/red]")
         wait_key()
         return [], None
