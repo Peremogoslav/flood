@@ -14,6 +14,7 @@ LOG_FILE = os.getenv("CLI_LOG_FILE", "log.file")
 session = requests.Session()
 ACCESS_TOKEN = None
 ACCESS_PASSWORD = None
+IS_ADMIN = False
 console = Console()
 
 
@@ -151,6 +152,11 @@ def menu_auth():
             if r.ok:
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
+                try:
+                    global IS_ADMIN
+                    IS_ADMIN = bool(data.get("is_admin", False))
+                except Exception:
+                    IS_ADMIN = False
                 console.print("[green]Регистрация успешна. Токен получен.[/green]")
                 log_line(f"register_success username={username}")
                 return
@@ -173,6 +179,11 @@ def menu_auth():
             if r.ok:
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
+                try:
+                    global IS_ADMIN
+                    IS_ADMIN = bool(data.get("is_admin", False))
+                except Exception:
+                    IS_ADMIN = False
                 console.print("[green]Вход выполнен. Токен обновлён.[/green]")
                 log_line(f"login_success username={username}")
                 return
@@ -599,7 +610,8 @@ def main():
         console.print("[bold cyan]3.[/bold cyan] Удалить аккаунт/сессию")
         console.print("[bold cyan]4.[/bold cyan] Настройки спама")
         console.print("[bold cyan]5.[/bold cyan] Добавить папку с чатами")
-        console.print("[bold cyan]6.[/bold cyan] Админ-панель")
+        if IS_ADMIN:
+            console.print("[bold cyan]6.[/bold cyan] Админ-панель")
         console.print("[bold cyan]0.[/bold cyan] Выйти\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
@@ -613,7 +625,12 @@ def main():
         elif ch == "5":
             add_folder_to_accounts_flow()
         elif ch == "6":
-            menu_admin()
+            if IS_ADMIN:
+                menu_admin()
+            else:
+                console.print("[red]Доступно только администратору[/red]
+")
+                wait_key()
         elif ch == "0":
             break
 
