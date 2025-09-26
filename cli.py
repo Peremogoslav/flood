@@ -249,7 +249,15 @@ def start_spam_flow():
         pass
     payload = {"account_ids": acc_ids, "folder_name": folder_name, "messages": msgs, "min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize}
     r = session.post(f"{API_BASE}/spam/start", json=payload, headers=auth_headers())
-    console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
+    if r.ok:
+        data = r.json()
+        job_id = data.get("job_id")
+        console.print(f"[green]Запущено[/green]. job_id: {job_id}")
+        if job_id and prompt_yes_no("Показать статус сейчас?", default=True):
+            s = session.get(f"{API_BASE}/spam/status/{job_id}", headers=auth_headers())
+            console.print(s.json() if s.ok else f"[red]Ошибка статуса: {s.status_code} {s.text}")
+    else:
+        console.print(f"[red]Ошибка: {r.status_code} {r.text}")
     wait_key()
 def menu_accounts():
     while True:

@@ -1,5 +1,6 @@
 import asyncio
 import random
+import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -21,6 +22,10 @@ class SpamStartIn(BaseModel):
 
 
 router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
+
+
+JOBS: dict[str, dict] = {}
+JOBS_LOCK = asyncio.Lock()
 
 
 @router.post("/start")
@@ -77,6 +82,27 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
                 else:
                     await client.disconnect()
 
-    await asyncio.gather(*[spam_for_account(a) for a in accounts])
-    return {"status": "completed"}
+    async def worker(job_id: str):
+        try:
+            await asyncio.gather(*[spam_for_account(a) for a in accounts])
+            async with JOBS_LOCK:
+                JOBS[job_id]["status"] = "completed"
+        except Exception as e:
+            async with JOBS_LOCK:
+                JOBS[job_id]["status"] = "error"
+                JOBS[job_id]["detail"] = str(e)
+
+    job_id = str(uuid.uuid4())
+    async with JOBS_LOCK:
+        JOBS[job_id] = {"status": "running"}
+    asyncio.create_task(worker(job_id))
+    return {"status": "started", "job_id": job_id}
+
+
+@router.get("/status/{job_id}")
+async def spam_status(job_id: str):
+    async with JOBS_LOCK:
+        if job_id not in JOBS:
+            raise HTTPException(status_code=404, detail="job not found")
+        return JOBS[job_id]
 
