@@ -11,6 +11,7 @@ from rich import box
 API_BASE = os.getenv("API_BASE", "http://localhost:8000")
 session = requests.Session()
 ACCESS_TOKEN = None
+ACCESS_PASSWORD = None
 console = Console()
 
 
@@ -52,6 +53,74 @@ def prompt_phone() -> str | None:
 def auth_headers():
     global ACCESS_TOKEN
     return {"Authorization": f"Bearer {ACCESS_TOKEN}"} if ACCESS_TOKEN else {}
+
+
+def extra_headers():
+    return {"X-Access-Password": ACCESS_PASSWORD} if ACCESS_PASSWORD else {}
+
+
+def merged_headers(h: dict | None = None) -> dict:
+    base = {}
+    base.update(auth_headers())
+    base.update(extra_headers())
+    if h:
+        base.update(h)
+    return base
+
+
+def _maybe_prompt_access_password(resp: requests.Response) -> bool:
+    global ACCESS_PASSWORD
+    if resp is not None and resp.status_code == 403:
+        try:
+            data = resp.json()
+            if isinstance(data, dict) and "Access denied" in str(data.get("detail", "")):
+                pwd = pwinput.pwinput(prompt="Пароль доступа: ", mask="*")
+                if pwd:
+                    ACCESS_PASSWORD = pwd
+                    return True
+        except Exception:
+            pass
+    return False
+
+
+def api_get(path: str, **kwargs):
+    url = f"{API_BASE}{path}"
+    kwargs["headers"] = merged_headers(kwargs.get("headers"))
+    resp = session.get(url, **kwargs)
+    if _maybe_prompt_access_password(resp):
+        kwargs["headers"] = merged_headers(kwargs.get("headers"))
+        resp = session.get(url, **kwargs)
+    return resp
+
+
+def api_post(path: str, **kwargs):
+    url = f"{API_BASE}{path}"
+    kwargs["headers"] = merged_headers(kwargs.get("headers"))
+    resp = session.post(url, **kwargs)
+    if _maybe_prompt_access_password(resp):
+        kwargs["headers"] = merged_headers(kwargs.get("headers"))
+        resp = session.post(url, **kwargs)
+    return resp
+
+
+def api_put(path: str, **kwargs):
+    url = f"{API_BASE}{path}"
+    kwargs["headers"] = merged_headers(kwargs.get("headers"))
+    resp = session.put(url, **kwargs)
+    if _maybe_prompt_access_password(resp):
+        kwargs["headers"] = merged_headers(kwargs.get("headers"))
+        resp = session.put(url, **kwargs)
+    return resp
+
+
+def api_delete(path: str, **kwargs):
+    url = f"{API_BASE}{path}"
+    kwargs["headers"] = merged_headers(kwargs.get("headers"))
+    resp = session.delete(url, **kwargs)
+    if _maybe_prompt_access_password(resp):
+        kwargs["headers"] = merged_headers(kwargs.get("headers"))
+        resp = session.delete(url, **kwargs)
+    return resp
 
 
 def menu_auth():
@@ -96,7 +165,7 @@ def add_account_flow():
     phone = prompt_phone()
     if not phone:
         return
-    r = session.post(f"{API_BASE}/auth/start", json={"phone": phone}, headers=auth_headers())
+    r = api_post("/auth/start", json={"phone": phone})
     if not r.ok:
         console.print(f"[red]Ошибка: {r.status_code} {r.text}")
         wait_key()
@@ -106,13 +175,13 @@ def add_account_flow():
         return
     pwd = pwinput.pwinput(prompt="Введите пароль 2FA (если включён, иначе Enter): ", mask="*")
     payload = {"phone": phone, "code": code or None, "password": (pwd or None)}
-    r2 = session.post(f"{API_BASE}/auth/verify", json=payload, headers=auth_headers())
+    r2 = api_post("/auth/verify", json=payload)
     console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
     wait_key()
 
 
 def delete_account_flow():
-    r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+    r = api_get("/accounts/")
     data = r.json() if r.ok else []
     if not data:
         console.print("[yellow]Нет аккаунтов для удаления[/yellow]")
@@ -148,7 +217,7 @@ def delete_account_flow():
 
 
 def add_folder_to_accounts_flow():
-    r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+    r = api_get("/accounts/")
     accs = r.json() if r.ok else []
     if not accs:
         console.print("[yellow]Нет аккаунтов[/yellow]")
@@ -165,7 +234,7 @@ def add_folder_to_accounts_flow():
         wait_key()
         return
     link = input("Ссылка addlist: ").strip()
-    r2 = session.post(f"{API_BASE}/folders/addlist", json={"phone_ids": id_list, "link": link}, headers=auth_headers())
+    r2 = api_post("/folders/addlist", json={"phone_ids": id_list, "link": link})
     console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
     wait_key()
 
@@ -188,7 +257,7 @@ def choose_accounts_and_folder():
         wait_key()
         return [], None
     params = "&".join([f"account_ids={i}" for i in id_list])
-    r2 = session.get(f"{API_BASE}/folders/by_accounts?{params}", headers=auth_headers())
+    r2 = api_get(f"/folders/by_accounts?{params}")
     if not r2.ok:
         console.print(f"[red]Ошибка: {r2.status_code} {r2.text}")
         wait_key()
@@ -241,7 +310,7 @@ def start_spam_flow():
     max_delay = 10
     randomize = True
     try:
-        rc = session.get(f"{API_BASE}/config/", headers=auth_headers())
+        rc = api_get("/config/")
         if rc.ok:
             cfg = rc.json()
             min_delay = int(cfg.get("min_delay", min_delay))
@@ -250,7 +319,7 @@ def start_spam_flow():
     except Exception:
         pass
     payload = {"account_ids": acc_ids, "folder_name": folder_name, "messages": msgs, "min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize}
-    r = session.post(f"{API_BASE}/spam/start", json=payload, headers=auth_headers())
+    r = api_post("/spam/start", json=payload)
     if r.ok:
         data = r.json()
         job_id = data.get("job_id")
@@ -258,7 +327,7 @@ def start_spam_flow():
         # live log tail
         since = 0
         while True:
-            s = session.get(f"{API_BASE}/spam/logs/{job_id}", params={"since": since}, headers=auth_headers())
+            s = api_get(f"/spam/logs/{job_id}", params={"since": since})
             if not s.ok:
                 console.print(f"[red]Ошибка статуса: {s.status_code} {s.text}")
                 break
@@ -298,7 +367,7 @@ def menu_accounts():
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+            r = api_get("/accounts/")
             if r.ok:
                 data = r.json()
                 if not data:
@@ -388,11 +457,11 @@ def menu_folders():
                 wait_key()
                 continue
             link = input("Ссылка addlist: ").strip()
-            r2 = session.post(f"{API_BASE}/folders/addlist", json={"phone_ids": id_list, "link": link}, headers=auth_headers())
+            r2 = api_post("/folders/addlist", json={"phone_ids": id_list, "link": link})
             console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "2":
-            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+            r = api_get("/accounts/")
             accs = r.json() if r.ok else []
             if not accs:
                 console.print("[yellow]Нет аккаунтов[/yellow]")
@@ -409,11 +478,11 @@ def menu_folders():
                 wait_key()
                 continue
             params = "&".join([f"account_ids={i}" for i in id_list])
-            r2 = session.get(f"{API_BASE}/folders/by_accounts?{params}", headers=auth_headers())
+            r2 = api_get(f"/folders/by_accounts?{params}")
             console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "3":
-            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+            r = api_get("/accounts/")
             accs = r.json() if r.ok else []
             if not accs:
                 console.print("[yellow]Нет аккаунтов[/yellow]")
@@ -441,7 +510,7 @@ def menu_folders():
                 continue
             randomize = input("Перемешивать чаты? (y/n): ").strip().lower() in ("y", "да", "1", "true")
             payload = {"account_ids": id_list, "folder_name": folder_name, "messages": msgs, "min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize}
-            r2 = session.post(f"{API_BASE}/spam/start", json=payload, headers=auth_headers())
+            r2 = api_post("/spam/start", json=payload)
             console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "0":
