@@ -253,9 +253,35 @@ def start_spam_flow():
         data = r.json()
         job_id = data.get("job_id")
         console.print(f"[green]Запущено[/green]. job_id: {job_id}")
-        if job_id and prompt_yes_no("Показать статус сейчас?", default=True):
-            s = session.get(f"{API_BASE}/spam/status/{job_id}", headers=auth_headers())
-            console.print(s.json() if s.ok else f"[red]Ошибка статуса: {s.status_code} {s.text}")
+        # live log tail
+        since = 0
+        while True:
+            s = session.get(f"{API_BASE}/spam/logs/{job_id}", params={"since": since}, headers=auth_headers())
+            if not s.ok:
+                console.print(f"[red]Ошибка статуса: {s.status_code} {s.text}")
+                break
+            body = s.json()
+            for entry in body.get("logs", []):
+                level = entry.get("level")
+                peer = entry.get("peer", "?")
+                account = entry.get("account", "?")
+                if level == "sent":
+                    console.print(f"[green][SENT][/green] {account} → {peer}")
+                elif level == "skip":
+                    console.print(f"[yellow][SKIP][/yellow] {account} → {peer}: {entry.get('detail','')}")
+                else:
+                    console.print(f"[blue]{entry.get('msg','')}")
+            since = body.get("next", since)
+            status = body.get("status")
+            if status in ("completed", "error"):
+                console.print(f"[bold]Статус: {status}[/bold]")
+                break
+            # exit live tail if user wants
+            try:
+                import time
+                time.sleep(1)
+            except KeyboardInterrupt:
+                break
     else:
         console.print(f"[red]Ошибка: {r.status_code} {r.text}")
     wait_key()

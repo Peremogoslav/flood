@@ -1,6 +1,7 @@
 import asyncio
 import random
 import uuid
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -26,6 +27,15 @@ router = APIRouter(dependencies=[Depends(bearer_auth(settings.jwt_secret))])
 
 JOBS: dict[str, dict] = {}
 JOBS_LOCK = asyncio.Lock()
+
+
+async def _append_log(job_id: str, entry: dict):
+    entry.setdefault("ts", datetime.now(timezone.utc).isoformat())
+    async with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if job is None:
+            return
+        job.setdefault("logs", []).append(entry)
 
 
 @router.post("/start")
@@ -71,8 +81,9 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
                 msg = random.choice(payload.messages)
                 try:
                     await client.send_message(peer, msg, link_preview=False)
-                except Exception:
-                    pass
+                    await _append_log(job_id, {"level": "sent", "account": acc.phone, "peer": getattr(peer, 'title', getattr(peer, 'username', 'unknown'))})
+                except Exception as e:
+                    await _append_log(job_id, {"level": "skip", "account": acc.phone, "peer": getattr(peer, 'title', getattr(peer, 'username', 'unknown')), "detail": str(e)})
                 await asyncio.sleep(random.randint(user_min, user_max))
         finally:
             if client.is_connected():
@@ -87,14 +98,16 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
             await asyncio.gather(*[spam_for_account(a) for a in accounts])
             async with JOBS_LOCK:
                 JOBS[job_id]["status"] = "completed"
+            await _append_log(job_id, {"level": "info", "msg": "Рассылка завершена"})
         except Exception as e:
             async with JOBS_LOCK:
                 JOBS[job_id]["status"] = "error"
                 JOBS[job_id]["detail"] = str(e)
+            await _append_log(job_id, {"level": "error", "msg": f"Ошибка: {e}"})
 
     job_id = str(uuid.uuid4())
     async with JOBS_LOCK:
-        JOBS[job_id] = {"status": "running"}
+        JOBS[job_id] = {"status": "running", "logs": []}
     asyncio.create_task(worker(job_id))
     return {"status": "started", "job_id": job_id}
 
@@ -105,4 +118,15 @@ async def spam_status(job_id: str):
         if job_id not in JOBS:
             raise HTTPException(status_code=404, detail="job not found")
         return JOBS[job_id]
+
+
+@router.get("/logs/{job_id}")
+async def spam_logs(job_id: str, since: int = 0):
+    async with JOBS_LOCK:
+        if job_id not in JOBS:
+            raise HTTPException(status_code=404, detail="job not found")
+        logs = JOBS[job_id].get("logs", [])
+        status = JOBS[job_id].get("status")
+        slice_logs = logs[since:]
+        return {"logs": slice_logs, "next": since + len(slice_logs), "status": status}
 
