@@ -19,9 +19,16 @@ services:
       context: .
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/telegram_manager
+      DATABASE_URL: ${DATABASE_URL}
+      API_ID: ${API_ID}
+      API_HASH: ${API_HASH}
+      SESSIONS_DIR: ${SESSIONS_DIR}
     volumes:
       - ./:/app
+      - sessions:/app/sessions
+      - ../sessions:/app/sessions_host
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
@@ -30,4 +37,5 @@ services:
 
 volumes:
   pgdata:
+  sessions:
 
