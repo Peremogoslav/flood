@@ -36,3 +36,14 @@ class AuthFlow(Base):
     phone = Column(String, unique=True, nullable=False, index=True)
     phone_code_hash = Column(String, nullable=False)
 
+
+class UserConfig(Base):
+    __tablename__ = "user_configs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, unique=True, nullable=False, index=True)
+    min_delay = Column(Integer, nullable=False, default=10)
+    max_delay = Column(Integer, nullable=False, default=15)
+    randomize_chats = Column(Integer, nullable=False, default=1)  # 1=true, 0=false
+    use_images = Column(Integer, nullable=False, default=0)
+

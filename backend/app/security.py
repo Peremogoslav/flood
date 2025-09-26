@@ -42,3 +42,19 @@ def bearer_auth(secret: str):
 
     return dependency
 
+
+def get_current_user_id(secret: str):
+    async def dependency(credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> int:
+        if not credentials or credentials.scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Authorization header missing")
+        payload = decode_access_token(credentials.credentials, secret)
+        sub = payload.get("sub")
+        if not sub:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+        try:
+            return int(sub)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid subject in token")
+
+    return dependency
+
