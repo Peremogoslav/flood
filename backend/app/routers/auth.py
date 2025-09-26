@@ -109,17 +109,16 @@ async def verify_auth(payload: VerifyAuthIn, current_user_id: int = Depends(get_
         if not await client.is_user_authorized():
             raise HTTPException(status_code=401, detail="Authorization failed")
 
-        # persist in DB and cleanup flow (store string session)
+        # persist in DB and cleanup flow (store local session file path)
         db = SessionLocal()
         try:
             existing = db.query(SessionAccount).filter_by(phone=payload.phone).first()
             if not existing:
-                s_str = StringSession.save(client.session)
-                rec = SessionAccount(phone=payload.phone, session_file=None, session_string=s_str, user_id=current_user_id)
+                rec = SessionAccount(phone=payload.phone, session_file=session_path, session_string=None, user_id=current_user_id)
                 db.add(rec)
             else:
-                existing.session_string = StringSession.save(client.session)
-                existing.session_file = None
+                existing.session_file = session_path
+                existing.session_string = None
                 if not existing.user_id:
                     existing.user_id = current_user_id
             if db.query(AuthFlow).filter_by(phone=payload.phone).first():

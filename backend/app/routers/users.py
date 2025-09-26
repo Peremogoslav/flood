@@ -42,7 +42,10 @@ def register(payload: RegisterIn, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenOut)
 def login(payload: LoginIn, db: Session = Depends(get_db)):
     user = db.query(User).filter_by(username=payload.username).first()
-    if not user or not verify_password(payload.password, user.password_hash):
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    # надеемся на безопасную проверку без утечки деталей
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"sub": str(user.id), "username": user.username, "is_admin": bool(user.is_admin)}, settings.jwt_secret)
     return TokenOut(access_token=token, is_admin=bool(user.is_admin))

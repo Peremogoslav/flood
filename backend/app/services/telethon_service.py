@@ -22,15 +22,10 @@ def session_lock_for(path: str) -> asyncio.Lock:
 
 
 async def list_folders(session_file: str | None = None, session_string: str | None = None) -> Dict[str, List[str]]:
-    if session_string:
-        client = TelegramClient(StringSession(session_string), settings.api_id, settings.api_hash)
-        lock = None
+    client = TelegramClient(session_file, settings.api_id, settings.api_hash)
+    lock = session_lock_for(session_file or "")
+    async with lock:
         await client.connect()
-    else:
-        client = TelegramClient(session_file, settings.api_id, settings.api_hash)
-        lock = session_lock_for(session_file or "")
-        async with lock:
-            await client.connect()
     try:
         if not await client.is_user_authorized():
             return {}
@@ -82,23 +77,15 @@ async def list_folders(session_file: str | None = None, session_string: str | No
         return folders_with_titles
     finally:
         if client.is_connected():
-            if lock:
-                async with lock:
-                    await client.disconnect()
-            else:
+            async with lock:
                 await client.disconnect()
 
 
 async def get_folder_peers(session_file: str | None, folder_name: str, session_string: str | None = None):
-    if session_string:
-        client = TelegramClient(StringSession(session_string), settings.api_id, settings.api_hash)
-        lock = None
+    client = TelegramClient(session_file, settings.api_id, settings.api_hash)
+    lock = session_lock_for(session_file or "")
+    async with lock:
         await client.connect()
-    else:
-        client = TelegramClient(session_file, settings.api_id, settings.api_hash)
-        lock = session_lock_for(session_file or "")
-        async with lock:
-            await client.connect()
     try:
         if not await client.is_user_authorized():
             return []
@@ -145,9 +132,6 @@ async def get_folder_peers(session_file: str | None, folder_name: str, session_s
         return []
     finally:
         if client.is_connected():
-            if lock:
-                async with lock:
-                    await client.disconnect()
-            else:
+            async with lock:
                 await client.disconnect()
 
