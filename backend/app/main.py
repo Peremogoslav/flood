@@ -36,7 +36,7 @@ def on_startup():
     finally:
         db.close()
 
-    # lightweight migration: ensure users.username exists (for username-based auth)
+    # lightweight migration: ensure users.username exists and legacy email does not block inserts
     try:
         inspector = sa_inspect(engine)
         if 'users' in inspector.get_table_names():
@@ -50,6 +50,20 @@ def on_startup():
                         conn.execute(text("ALTER TABLE users ALTER COLUMN username SET NOT NULL"))
                     except Exception:
                         pass
+            # drop legacy email constraints/column if present
+            if 'email' in col_names:
+                with engine.begin() as conn:
+                    try:
+                        conn.execute(text("DROP INDEX IF EXISTS uq_users_email"))
+                    except Exception:
+                        pass
+                    try:
+                        conn.execute(text("ALTER TABLE users DROP COLUMN email"))
+                    except Exception:
+                        try:
+                            conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
+                        except Exception:
+                            pass
     except Exception:
         # best-effort migration; ignore if not applicable
         pass
