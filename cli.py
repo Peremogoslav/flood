@@ -37,14 +37,14 @@ def menu_auth():
         clear_screen()
         print_header()
         console.print("[bold magenta]Авторизация[/bold magenta]\n")
-        console.print("1. Регистрация (email + пароль)")
-        console.print("2. Вход (email + пароль)")
+        console.print("1. Регистрация (username + пароль)")
+        console.print("2. Вход (username + пароль)")
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-            email = input("Email: ").strip()
+            username = input("Username: ").strip()
             password = pwinput.pwinput(prompt="Пароль: ", mask="*")
-            r = session.post(f"{API_BASE}/users/register", json={"email": email, "password": password})
+            r = session.post(f"{API_BASE}/users/register", json={"username": username, "password": password})
             if r.ok:
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
@@ -53,9 +53,9 @@ def menu_auth():
                 console.print(f"[red]Ошибка: {r.status_code} {r.text}")
             wait_key()
         elif ch == "2":
-            email = input("Email: ").strip()
+            username = input("Username: ").strip()
             password = pwinput.pwinput(prompt="Пароль: ", mask="*")
-            r = session.post(f"{API_BASE}/users/login", json={"email": email, "password": password})
+            r = session.post(f"{API_BASE}/users/login", json={"username": username, "password": password})
             if r.ok:
                 data = r.json()
                 ACCESS_TOKEN = data.get("access_token")
