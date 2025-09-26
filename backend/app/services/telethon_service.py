@@ -2,6 +2,7 @@ import os
 from typing import Dict, List, Tuple
 import asyncio
 from telethon import TelegramClient, utils
+from telethon.sessions import StringSession
 from telethon.tl.functions.messages import GetDialogFiltersRequest
 from telethon.tl.types import User, Chat, Channel, DialogFilter, DialogFilterDefault
 from ..settings import settings
@@ -29,11 +30,16 @@ def session_lock_for(path: str) -> asyncio.Lock:
     return lock
 
 
-async def list_folders(session_file: str) -> Dict[str, List[str]]:
-    client = TelegramClient(session_file, settings.api_id, settings.api_hash)
-    lock = session_lock_for(session_file)
-    async with lock:
+async def list_folders(session_file: str | None = None, session_string: str | None = None) -> Dict[str, List[str]]:
+    if session_string:
+        client = TelegramClient(StringSession(session_string), settings.api_id, settings.api_hash)
+        lock = None
         await client.connect()
+    else:
+        client = TelegramClient(session_file, settings.api_id, settings.api_hash)
+        lock = session_lock_for(session_file or "")
+        async with lock:
+            await client.connect()
     try:
         if not await client.is_user_authorized():
             return {}
@@ -85,15 +91,23 @@ async def list_folders(session_file: str) -> Dict[str, List[str]]:
         return folders_with_titles
     finally:
         if client.is_connected():
-            async with lock:
+            if lock:
+                async with lock:
+                    await client.disconnect()
+            else:
                 await client.disconnect()
 
 
-async def get_folder_peers(session_file: str, folder_name: str):
-    client = TelegramClient(session_file, settings.api_id, settings.api_hash)
-    lock = session_lock_for(session_file)
-    async with lock:
+async def get_folder_peers(session_file: str | None, folder_name: str, session_string: str | None = None):
+    if session_string:
+        client = TelegramClient(StringSession(session_string), settings.api_id, settings.api_hash)
+        lock = None
         await client.connect()
+    else:
+        client = TelegramClient(session_file, settings.api_id, settings.api_hash)
+        lock = session_lock_for(session_file or "")
+        async with lock:
+            await client.connect()
     try:
         if not await client.is_user_authorized():
             return []
@@ -140,6 +154,9 @@ async def get_folder_peers(session_file: str, folder_name: str):
         return []
     finally:
         if client.is_connected():
-            async with lock:
+            if lock:
+                async with lock:
+                    await client.disconnect()
+            else:
                 await client.disconnect()
 

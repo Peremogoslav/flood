@@ -5,6 +5,7 @@ from telethon.errors import PhoneNumberInvalidError, PhoneCodeInvalidError, Sess
 from ..settings import settings
 from ..db import SessionLocal
 from ..models import SessionAccount, AuthFlow
+from telethon.sessions import StringSession
 import os
 
 
@@ -107,13 +108,17 @@ async def verify_auth(payload: VerifyAuthIn):
         if not await client.is_user_authorized():
             raise HTTPException(status_code=401, detail="Authorization failed")
 
-        # persist in DB and cleanup flow
+        # persist in DB and cleanup flow (store string session)
         db = SessionLocal()
         try:
             existing = db.query(SessionAccount).filter_by(phone=payload.phone).first()
             if not existing:
-                rec = SessionAccount(phone=payload.phone, session_file=session_path)
+                s_str = StringSession.save(client.session)
+                rec = SessionAccount(phone=payload.phone, session_file=None, session_string=s_str)
                 db.add(rec)
+            else:
+                existing.session_string = StringSession.save(client.session)
+                existing.session_file = None
             if db.query(AuthFlow).filter_by(phone=payload.phone).first():
                 db.query(AuthFlow).filter_by(phone=payload.phone).delete()
             db.commit()

@@ -7,7 +7,8 @@ class SessionAccount(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     phone = Column(String, unique=True, nullable=False)
-    session_file = Column(String, nullable=False)
+    session_file = Column(String, nullable=True)
+    session_string = Column(String, nullable=True)
 
     __table_args__ = (
         UniqueConstraint('phone', name='uq_sessions_phone'),

@@ -54,6 +54,6 @@ async def folders_by_accounts(account_ids: list[int] = Query(..., min_items=1), 
         raise HTTPException(status_code=404, detail="Accounts not found")
     out = {}
     for acc in accounts:
-        out[str(acc.id)] = await list_folders(acc.session_file)
+        out[str(acc.id)] = await list_folders(session_file=acc.session_file, session_string=acc.session_string)
     return out
 

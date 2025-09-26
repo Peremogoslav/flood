@@ -74,7 +74,7 @@ def menu_auth():
                 console.print("[green]Регистрация успешна. Токен получен.[/green]")
             else:
                 console.print(f"[red]Ошибка: {r.status_code} {r.text}")
-            wait_key()
+            return
         elif ch == "2":
             username = input("Username: ").strip()
             password = pwinput.pwinput(prompt="Пароль: ", mask="*")
@@ -85,7 +85,7 @@ def menu_auth():
                 console.print("[green]Вход выполнен. Токен обновлён.[/green]")
             else:
                 console.print(f"[red]Ошибка: {r.status_code} {r.text}")
-            wait_key()
+            return
         elif ch == "0":
             break
 
@@ -464,7 +464,6 @@ def main():
         console.print("[bold cyan]4.[/bold cyan] Настройки спама")
         console.print("[bold cyan]5.[/bold cyan] Добавить папку с чатами")
         console.print("[bold cyan]6.[/bold cyan] Админ-панель")
-        console.print("[bold cyan]7.[/bold cyan] Авторизация (регистрация/вход)")
         console.print("[bold cyan]0.[/bold cyan] Выйти\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
@@ -479,8 +478,6 @@ def main():
             add_folder_to_accounts_flow()
         elif ch == "6":
             menu_admin()
-        elif ch == "7":
-            menu_auth()
         elif ch == "0":
             break
 
