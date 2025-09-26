@@ -28,3 +28,11 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     password_hash = Column(String, nullable=False)
 
+
+class AuthFlow(Base):
+    __tablename__ = "auth_flows"
+
+    id = Column(Integer, primary_key=True, index=True)
+    phone = Column(String, unique=True, nullable=False, index=True)
+    phone_code_hash = Column(String, nullable=False)
+

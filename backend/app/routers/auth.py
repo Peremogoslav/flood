@@ -4,7 +4,7 @@ from telethon import TelegramClient
 from telethon.errors import PhoneNumberInvalidError, PhoneCodeInvalidError, SessionPasswordNeededError
 from ..settings import settings
 from ..db import SessionLocal
-from ..models import SessionAccount
+from ..models import SessionAccount, AuthFlow
 import os
 
 
@@ -45,7 +45,7 @@ async def start_auth(payload: StartAuthIn):
     client = TelegramClient(session_path, settings.api_id, settings.api_hash)
     await client.connect()
     try:
-        await client.send_code_request(payload.phone)
+        sent = await client.send_code_request(payload.phone)
     except PhoneNumberInvalidError:
         await client.disconnect()
         raise HTTPException(status_code=404, detail="Phone not found or invalid in Telegram")
@@ -56,6 +56,19 @@ async def start_auth(payload: StartAuthIn):
         # do not keep connection open
         if client.is_connected():
             await client.disconnect()
+
+    # save phone_code_hash
+    db = SessionLocal()
+    try:
+        rec = db.query(AuthFlow).filter_by(phone=payload.phone).first()
+        if rec:
+            rec.phone_code_hash = sent.phone_code_hash
+        else:
+            rec = AuthFlow(phone=payload.phone, phone_code_hash=sent.phone_code_hash)
+            db.add(rec)
+        db.commit()
+    finally:
+        db.close()
 
     return {"status": "code_sent"}
 
@@ -70,34 +83,40 @@ async def verify_auth(payload: VerifyAuthIn):
     await client.connect()
 
     try:
-        if payload.code:
-            try:
-                await client.sign_in(payload.phone, payload.code)
-            except PhoneCodeInvalidError:
-                raise HTTPException(status_code=400, detail="Invalid code")
-            except SessionPasswordNeededError:
-                # require password in another branch
-                if not payload.password:
-                    raise HTTPException(status_code=428, detail="Password required (2FA enabled)")
-        if payload.password and (not payload.code):
-            # attempt password-only sign in (after previous code attempt)
-            try:
-                await client.sign_in(password=payload.password)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Invalid 2FA password: {e}")
+        # fetch stored phone_code_hash
+        db = SessionLocal()
+        try:
+            flow = db.query(AuthFlow).filter_by(phone=payload.phone).first()
+            phone_code_hash = flow.phone_code_hash if flow else None
+        finally:
+            db.close()
+
+        if not payload.code:
+            raise HTTPException(status_code=400, detail="code is required")
+
+        try:
+            await client.sign_in(payload.phone, payload.code, phone_code_hash=phone_code_hash)
+        except PhoneCodeInvalidError:
+            raise HTTPException(status_code=400, detail="Invalid code")
+        except SessionPasswordNeededError:
+            if not payload.password:
+                raise HTTPException(status_code=428, detail="Password required (2FA enabled)")
+            await client.sign_in(password=payload.password)
 
         # ensure authorized
         if not await client.is_user_authorized():
             raise HTTPException(status_code=401, detail="Authorization failed")
 
-        # persist in DB
+        # persist in DB and cleanup flow
         db = SessionLocal()
         try:
             existing = db.query(SessionAccount).filter_by(phone=payload.phone).first()
             if not existing:
                 rec = SessionAccount(phone=payload.phone, session_file=session_path)
                 db.add(rec)
-                db.commit()
+            if db.query(AuthFlow).filter_by(phone=payload.phone).first():
+                db.query(AuthFlow).filter_by(phone=payload.phone).delete()
+            db.commit()
         finally:
             db.close()
 
