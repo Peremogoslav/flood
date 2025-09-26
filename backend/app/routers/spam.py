@@ -40,7 +40,10 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
 
     async def spam_for_account(acc: SessionAccount):
         client = TelegramClient(acc.session_file, settings.api_id, settings.api_hash)
-        await client.connect()
+        from ..services.telethon_service import session_lock_for
+        lock = session_lock_for(acc.session_file)
+        async with lock:
+            await client.connect()
         try:
             if not await client.is_user_authorized():
                 return
@@ -56,7 +59,8 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
                 await asyncio.sleep(random.randint(user_min, user_max))
         finally:
             if client.is_connected():
-                await client.disconnect()
+                async with lock:
+                    await client.disconnect()
 
     await asyncio.gather(*[spam_for_account(a) for a in accounts])
     return {"status": "completed"}

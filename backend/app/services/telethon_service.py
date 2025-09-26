@@ -1,5 +1,6 @@
 import os
 from typing import Dict, List, Tuple
+import asyncio
 from telethon import TelegramClient, utils
 from telethon.tl.functions.messages import GetDialogFiltersRequest
 from telethon.tl.types import User, Chat, Channel, DialogFilter, DialogFilterDefault
@@ -15,9 +16,24 @@ def session_path(session_file: str | None, phone: str | None = None) -> str:
     raise ValueError("Either session_file or phone must be provided")
 
 
+_SESSION_LOCKS: Dict[str, asyncio.Lock] = {}
+
+
+def session_lock_for(path: str) -> asyncio.Lock:
+    # normalize path to avoid duplicates
+    key = os.path.abspath(path)
+    lock = _SESSION_LOCKS.get(key)
+    if lock is None:
+        lock = asyncio.Lock()
+        _SESSION_LOCKS[key] = lock
+    return lock
+
+
 async def list_folders(session_file: str) -> Dict[str, List[str]]:
     client = TelegramClient(session_file, settings.api_id, settings.api_hash)
-    await client.connect()
+    lock = session_lock_for(session_file)
+    async with lock:
+        await client.connect()
     try:
         if not await client.is_user_authorized():
             return {}
@@ -69,12 +85,15 @@ async def list_folders(session_file: str) -> Dict[str, List[str]]:
         return folders_with_titles
     finally:
         if client.is_connected():
-            await client.disconnect()
+            async with lock:
+                await client.disconnect()
 
 
 async def get_folder_peers(session_file: str, folder_name: str):
     client = TelegramClient(session_file, settings.api_id, settings.api_hash)
-    await client.connect()
+    lock = session_lock_for(session_file)
+    async with lock:
+        await client.connect()
     try:
         if not await client.is_user_authorized():
             return []
@@ -121,5 +140,6 @@ async def get_folder_peers(session_file: str, folder_name: str):
         return []
     finally:
         if client.is_connected():
-            await client.disconnect()
+            async with lock:
+                await client.disconnect()
 
