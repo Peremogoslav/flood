@@ -5,7 +5,6 @@ from telethon.errors import PhoneNumberInvalidError, PhoneCodeInvalidError, Sess
 from ..settings import settings
 from ..db import SessionLocal
 from ..models import SessionAccount, AuthFlow
-from telethon.sessions import StringSession
 from ..security import bearer_auth, get_current_user_id
 import os
 
@@ -34,20 +33,14 @@ async def start_auth(payload: StartAuthIn):
     if not payload.phone or not payload.phone.startswith("+"):
         raise HTTPException(status_code=400, detail="Phone must start with + and include country code")
 
-    # prevent duplicate accounts
-    db = SessionLocal()
-    try:
-        if db.query(SessionAccount).filter_by(phone=payload.phone).first():
-            raise HTTPException(status_code=409, detail="Account already exists")
-    finally:
-        db.close()
-
-    session_path = _session_path_for_phone(payload.phone)
+    # normalize phone (remove spaces); duplicates allowed (re-auth)
+    norm_phone = payload.phone.replace(" ", "")
+    session_path = _session_path_for_phone(norm_phone)
 
     client = TelegramClient(session_path, settings.api_id, settings.api_hash)
     await client.connect()
     try:
-        sent = await client.send_code_request(payload.phone)
+        sent = await client.send_code_request(norm_phone)
     except PhoneNumberInvalidError:
         await client.disconnect()
         raise HTTPException(status_code=404, detail="Phone not found or invalid in Telegram")
@@ -62,11 +55,11 @@ async def start_auth(payload: StartAuthIn):
     # save phone_code_hash
     db = SessionLocal()
     try:
-        rec = db.query(AuthFlow).filter_by(phone=payload.phone).first()
+        rec = db.query(AuthFlow).filter_by(phone=norm_phone).first()
         if rec:
             rec.phone_code_hash = sent.phone_code_hash
         else:
-            rec = AuthFlow(phone=payload.phone, phone_code_hash=sent.phone_code_hash)
+            rec = AuthFlow(phone=norm_phone, phone_code_hash=sent.phone_code_hash)
             db.add(rec)
         db.commit()
     finally:
@@ -80,7 +73,8 @@ async def verify_auth(payload: VerifyAuthIn, current_user_id: int = Depends(get_
     if not payload.phone:
         raise HTTPException(status_code=400, detail="phone is required")
 
-    session_path = _session_path_for_phone(payload.phone)
+    norm_phone = payload.phone.replace(" ", "")
+    session_path = _session_path_for_phone(norm_phone)
     client = TelegramClient(session_path, settings.api_id, settings.api_hash)
     await client.connect()
 
@@ -88,7 +82,7 @@ async def verify_auth(payload: VerifyAuthIn, current_user_id: int = Depends(get_
         # fetch stored phone_code_hash
         db = SessionLocal()
         try:
-            flow = db.query(AuthFlow).filter_by(phone=payload.phone).first()
+            flow = db.query(AuthFlow).filter_by(phone=norm_phone).first()
             phone_code_hash = flow.phone_code_hash if flow else None
         finally:
             db.close()
@@ -97,7 +91,7 @@ async def verify_auth(payload: VerifyAuthIn, current_user_id: int = Depends(get_
             raise HTTPException(status_code=400, detail="code is required")
 
         try:
-            await client.sign_in(payload.phone, payload.code, phone_code_hash=phone_code_hash)
+            await client.sign_in(norm_phone, payload.code, phone_code_hash=phone_code_hash)
         except PhoneCodeInvalidError:
             raise HTTPException(status_code=400, detail="Invalid code")
         except SessionPasswordNeededError:
@@ -112,17 +106,19 @@ async def verify_auth(payload: VerifyAuthIn, current_user_id: int = Depends(get_
         # persist in DB and cleanup flow (store local session file path)
         db = SessionLocal()
         try:
-            existing = db.query(SessionAccount).filter_by(phone=payload.phone).first()
+            existing = db.query(SessionAccount).filter_by(phone=norm_phone).first()
             if not existing:
-                rec = SessionAccount(phone=payload.phone, session_file=session_path, session_string=None, user_id=current_user_id)
+                rec = SessionAccount(phone=norm_phone, session_file=session_path, session_string=None, user_id=current_user_id)
                 db.add(rec)
             else:
+                if existing.user_id and existing.user_id != current_user_id:
+                    raise HTTPException(status_code=409, detail="Account belongs to another user")
                 existing.session_file = session_path
                 existing.session_string = None
                 if not existing.user_id:
                     existing.user_id = current_user_id
-            if db.query(AuthFlow).filter_by(phone=payload.phone).first():
-                db.query(AuthFlow).filter_by(phone=payload.phone).delete()
+            if db.query(AuthFlow).filter_by(phone=norm_phone).first():
+                db.query(AuthFlow).filter_by(phone=norm_phone).delete()
             db.commit()
         finally:
             db.close()
