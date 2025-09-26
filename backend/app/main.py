@@ -64,6 +64,15 @@ def on_startup():
                             conn.execute(text("ALTER TABLE users ALTER COLUMN email DROP NOT NULL"))
                         except Exception:
                             pass
+            # ensure is_admin column exists (default 0)
+            if 'is_admin' not in col_names:
+                with engine.begin() as conn:
+                    try:
+                        conn.execute(text("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0"))
+                        conn.execute(text("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL"))
+                        conn.execute(text("ALTER TABLE users ALTER COLUMN is_admin SET NOT NULL"))
+                    except Exception:
+                        pass
 
         # sessions table: ensure session_string exists; relax NOT NULL on session_file
         if 'sessions' in inspector.get_table_names():
@@ -76,6 +85,12 @@ def on_startup():
                     conn.execute(text("ALTER TABLE sessions ALTER COLUMN session_file DROP NOT NULL"))
                 except Exception:
                     pass
+                # ensure user_id column exists
+                if 'user_id' not in s_cols:
+                    try:
+                        conn.execute(text("ALTER TABLE sessions ADD COLUMN user_id INTEGER"))
+                    except Exception:
+                        pass
     except Exception:
         # best-effort migration; ignore if not applicable
         pass
