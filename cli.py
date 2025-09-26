@@ -396,7 +396,7 @@ def menu_accounts():
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
-    r = api_get("/accounts/")
+            r = api_get("/accounts/")
             if r.ok:
                 data = r.json()
                 if not data:
@@ -404,10 +404,10 @@ def menu_accounts():
                 else:
                     for a in data:
                         console.print(f"- {a['id']}: {a['phone']}")
-        log_line("accounts_list")
+                log_line("accounts_list")
             else:
                 console.print(f"[red]Ошибка: {r.status_code} {r.text}")
-        log_line(f"accounts_list_failed status={r.status_code}")
+                log_line(f"accounts_list_failed status={r.status_code}")
             wait_key()
         elif ch == "2":
             phone = input("Телефон (+7...): ").strip()
