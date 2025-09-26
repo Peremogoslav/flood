@@ -7,7 +7,7 @@ from ..settings import settings
 from ..db import get_db
 from ..models import SessionAccount
 from ..security import bearer_auth
-from ..services.telethon_service import list_folders
+from ..services.telethon_service import list_folders, init_client
 
 
 class AddListIn(BaseModel):
@@ -54,6 +54,16 @@ async def folders_by_accounts(account_ids: list[int] = Query(..., min_items=1), 
         raise HTTPException(status_code=404, detail="Accounts not found")
     out = {}
     for acc in accounts:
-        out[str(acc.id)] = await list_folders(session_file=acc.session_file, session_string=acc.session_string)
+        client, folder_maps = await init_client(acc.session_file)
+        # convert to {folderName: [titles]} for compatibility with CLI selection
+        fmap = {}
+        for name, peers in (folder_maps or {}).items():
+            titles = []
+            for p in peers:
+                titles.append(getattr(p, 'title', getattr(p, 'username', str(getattr(p, 'id', 'unknown')))))
+            fmap[name] = titles
+        out[str(acc.id)] = fmap
+        if client and client.is_connected():
+            await client.disconnect()
     return out
 
