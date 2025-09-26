@@ -1,22 +1,11 @@
 import os
-from typing import Dict, List, Tuple
+from typing import Dict, List
 import asyncio
 from telethon import TelegramClient, utils
 from telethon.sessions import StringSession
-from sqlalchemy.orm import Session as SASession
-from ..models import SessionAccount
 from telethon.tl.functions.messages import GetDialogFiltersRequest
 from telethon.tl.types import User, Chat, Channel, DialogFilter, DialogFilterDefault
 from ..settings import settings
-
-
-def session_path(session_file: str | None, phone: str | None = None) -> str:
-    os.makedirs(settings.sessions_dir, exist_ok=True)
-    if session_file:
-        return session_file
-    if phone:
-        return os.path.join(settings.sessions_dir, f"{phone}.session")
-    raise ValueError("Either session_file or phone must be provided")
 
 
 _SESSION_LOCKS: Dict[str, asyncio.Lock] = {}
