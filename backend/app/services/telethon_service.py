@@ -42,7 +42,10 @@ async def list_folders(session_file: str | None = None, session_string: str | No
             for f in filters_result.filters:
                 if isinstance(f, DialogFilterDefault):
                     continue
-                folder_title = f.title.text if hasattr(f.title, 'text') else str(f.title)
+                try:
+                    folder_title = f.title.text  # some builds expose .text
+                except Exception:
+                    folder_title = str(getattr(f, 'title', ''))
                 titles: List[str] = []
                 added_peer_ids = set()
                 if hasattr(f, 'include_peers'):
@@ -109,7 +112,10 @@ async def get_folder_peers(session_file: str | None, folder_name: str, session_s
         for f in filters_result.filters:
             if isinstance(f, DialogFilterDefault):
                 continue
-            current_title = f.title.text if hasattr(f.title, 'text') else str(f.title)
+            try:
+                current_title = f.title.text
+            except Exception:
+                current_title = str(getattr(f, 'title', ''))
             if current_title != folder_name:
                 continue
             peers = []
