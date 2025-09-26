@@ -7,6 +7,7 @@ from ..settings import settings
 from ..db import get_db
 from ..models import SessionAccount
 from ..security import bearer_auth
+from ..services.telethon_service import list_folders
 
 
 class AddListIn(BaseModel):
@@ -44,4 +45,17 @@ async def addlist_join(payload: AddListIn, db: Session = Depends(get_db)):
             await client.disconnect()
 
     return {"results": results}
+
+
+@router.get("/by_accounts")
+async def folders_by_accounts(account_ids: list[int] = Field(default_factory=list), db: Session = Depends(get_db)):
+    if not account_ids:
+        raise HTTPException(status_code=400, detail="account_ids required")
+    accounts = db.query(SessionAccount).filter(SessionAccount.id.in_(account_ids)).all()
+    if not accounts:
+        raise HTTPException(status_code=404, detail="Accounts not found")
+    out = {}
+    for acc in accounts:
+        out[str(acc.id)] = await list_folders(acc.session_file)
+    return out
 

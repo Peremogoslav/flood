@@ -73,9 +73,8 @@ def menu_accounts():
         print_header()
         console.print("[bold magenta]Аккаунты[/bold magenta]\n")
         console.print("1. Показать аккаунты")
-        console.print("2. Начать авторизацию (отправить код)")
-        console.print("3. Подтвердить авторизацию (код/2FA)")
-        console.print("4. Удалить аккаунт")
+        console.print("2. Добавить аккаунт (номер → код → 2FA)")
+        console.print("3. Удалить аккаунт")
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
@@ -93,17 +92,17 @@ def menu_accounts():
         elif ch == "2":
             phone = input("Телефон (+7...): ").strip()
             r = session.post(f"{API_BASE}/auth/start", json={"phone": phone}, headers=auth_headers())
-            console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
+            if not r.ok:
+                console.print(f"[red]Ошибка: {r.status_code} {r.text}")
+                wait_key()
+                continue
+            code = input("Код из Telegram: ").strip()
+            password = pwinput.pwinput(prompt="Пароль 2FA (если запрашивается, иначе Enter): ", mask="*")
+            payload = {"phone": phone, "code": code or None, "password": password or None}
+            r2 = session.post(f"{API_BASE}/auth/verify", json=payload, headers=auth_headers())
+            console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "3":
-            phone = input("Телефон (+7...): ").strip()
-            code = input("Код (если есть, иначе Enter): ").strip()
-            password = pwinput.pwinput(prompt="Пароль 2FA (если есть, иначе Enter): ", mask="*")
-            payload = {"phone": phone, "code": code or None, "password": password or None}
-            r = session.post(f"{API_BASE}/auth/verify", json=payload, headers=auth_headers())
-            console.print(r.json() if r.ok else f"[red]Ошибка: {r.status_code} {r.text}")
-            wait_key()
-        elif ch == "4":
             acc_id = input("ID аккаунта для удаления: ").strip()
             r = session.delete(f"{API_BASE}/accounts/{acc_id}", headers=auth_headers())
             console.print("Удалено" if r.status_code == 204 else f"[red]Ошибка: {r.status_code} {r.text}")
@@ -147,6 +146,8 @@ def menu_folders():
         print_header()
         console.print("[bold magenta]Папки[/bold magenta]\n")
         console.print("1. Подключить addlist к выбранным аккаунтам")
+        console.print("2. Показать папки выбранных аккаунтов")
+        console.print("3. Начать рассылку по папке")
         console.print("0. Назад\n")
         ch = input("Выберите действие: ").strip()
         if ch == "1":
@@ -168,6 +169,59 @@ def menu_folders():
                 continue
             link = input("Ссылка addlist: ").strip()
             r2 = session.post(f"{API_BASE}/folders/addlist", json={"phone_ids": id_list, "link": link}, headers=auth_headers())
+            console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
+            wait_key()
+        elif ch == "2":
+            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+            accs = r.json() if r.ok else []
+            if not accs:
+                console.print("[yellow]Нет аккаунтов[/yellow]")
+                wait_key()
+                continue
+            console.print("Доступные аккаунты:")
+            for a in accs:
+                console.print(f"- {a['id']}: {a['phone']}")
+            ids = input("Введите ID через запятую: ").strip()
+            try:
+                id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+            except ValueError:
+                console.print("[red]Неверный формат ID[/red]")
+                wait_key()
+                continue
+            params = "&".join([f"account_ids={i}" for i in id_list])
+            r2 = session.get(f"{API_BASE}/folders/by_accounts?{params}", headers=auth_headers())
+            console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
+            wait_key()
+        elif ch == "3":
+            r = session.get(f"{API_BASE}/accounts/", headers=auth_headers())
+            accs = r.json() if r.ok else []
+            if not accs:
+                console.print("[yellow]Нет аккаунтов[/yellow]")
+                wait_key()
+                continue
+            console.print("Доступные аккаунты:")
+            for a in accs:
+                console.print(f"- {a['id']}: {a['phone']}")
+            ids = input("Введите ID через запятую: ").strip()
+            try:
+                id_list = [int(x.strip()) for x in ids.split(",") if x.strip()]
+            except ValueError:
+                console.print("[red]Неверный формат ID[/red]")
+                wait_key()
+                continue
+            folder_name = input("Название папки: ").strip()
+            messages = input("Сообщения через | : ").strip()
+            msgs = [m.strip() for m in messages.split("|") if m.strip()]
+            try:
+                min_delay = int(input("min_delay: ").strip() or "5")
+                max_delay = int(input("max_delay: ").strip() or "10")
+            except ValueError:
+                console.print("[red]Неверные задержки[/red]")
+                wait_key()
+                continue
+            randomize = input("Перемешивать чаты? (y/n): ").strip().lower() in ("y", "да", "1", "true")
+            payload = {"account_ids": id_list, "folder_name": folder_name, "messages": msgs, "min_delay": min_delay, "max_delay": max_delay, "randomize_chats": randomize}
+            r2 = session.post(f"{API_BASE}/spam/start", json=payload, headers=auth_headers())
             console.print(r2.json() if r2.ok else f"[red]Ошибка: {r2.status_code} {r2.text}")
             wait_key()
         elif ch == "0":

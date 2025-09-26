@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from sqlalchemy.orm import Session
 from .db import Base, engine, SessionLocal
 from .models import IpRange
-from .routers import accounts, config, admin, auth, folders, users
+from .routers import accounts, config, admin, auth, folders, users, spam
 from sqlalchemy import inspect as sa_inspect, text
 from .handlers import validation_exception_handler, integrity_exception_handler, generic_exception_handler
 from fastapi.exceptions import RequestValidationError
@@ -75,6 +75,7 @@ app.include_router(admin.router, prefix="/admin", tags=["admin"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(folders.router, prefix="/folders", tags=["folders"])
 app.include_router(users.router, prefix="/users", tags=["users"])
+app.include_router(spam.router, prefix="/spam", tags=["spam"])
 
 # exception handlers
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
