@@ -11,6 +11,9 @@ from ..models import SessionAccount, UserConfig
 from ..security import bearer_auth, get_current_user_id
 from ..settings import settings
 from ..services.telethon_service import get_folder_peers
+import logging
+
+logger = logging.getLogger("app")
 
 
 class SpamStartIn(BaseModel):
@@ -52,6 +55,8 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
     user_min = ucfg.min_delay if ucfg else payload.min_delay
     user_max = ucfg.max_delay if ucfg else payload.max_delay
     user_rand = bool(ucfg.randomize_chats) if ucfg else payload.randomize_chats
+
+    logger.info("spam_start user_id=%s accounts=%s folder=%s", current_user_id, payload.account_ids, payload.folder_name)
 
     async def spam_for_account(acc: SessionAccount):
         # 1) Получаем список адресатов строго последовательно (в отдельной сессии)
@@ -100,11 +105,13 @@ async def start_spam(payload: SpamStartIn, db: Session = Depends(get_db), curren
             async with JOBS_LOCK:
                 JOBS[job_id]["status"] = "completed"
             await _append_log(job_id, {"level": "info", "msg": "Рассылка завершена"})
+            logger.info("spam_completed user_id=%s job_id=%s", current_user_id, job_id)
         except Exception as e:
             async with JOBS_LOCK:
                 JOBS[job_id]["status"] = "error"
                 JOBS[job_id]["detail"] = str(e)
             await _append_log(job_id, {"level": "error", "msg": f"Ошибка: {e}"})
+            logger.exception("spam_failed user_id=%s job_id=%s", current_user_id, job_id)
 
     job_id = str(uuid.uuid4())
     async with JOBS_LOCK:
